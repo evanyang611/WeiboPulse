@@ -1,0 +1,14 @@
+# Python
+__pycache__/
+*.ipynb
+
+# IDE
+.idea/
+.vscode/
+.DS_Store
+
+# Project specific
+logs/
+media/
+data/
+*.db

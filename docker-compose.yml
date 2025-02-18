@@ -1,0 +1,29 @@
+version: '3.8'
+
+services:
+  weibo_scraper:
+    build: .
+    ports:
+      - "8000:8000"  # API端口映射
+    volumes:
+      # 开发环境：使用本地目录
+      - ./data/db:/app/data/db
+      - ./data/media:/app/data/media
+      - ./data/logs:/app/logs
+      
+      # 生产环境：使用命名卷（取消注释以启用）
+      # - weibo_db:/app/data/db
+      # - weibo_media:/app/data/media
+      # - weibo_logs:/app/logs
+    env_file:
+      - .env
+    restart: unless-stopped
+
+# 生产环境的命名卷（取消注释以启用）
+# volumes:
+#   weibo_db:
+#     name: weibo_scraper_db
+#   weibo_media:
+#     name: weibo_scraper_media
+#   weibo_logs:
+#     name: weibo_scraper_logs
