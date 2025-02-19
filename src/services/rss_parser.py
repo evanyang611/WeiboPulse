@@ -1,9 +1,14 @@
-import feedparser
-from typing import List, Dict, Any
+import sys
+from pathlib import Path
+from typing import List, Optional, Dict, Any
 from datetime import datetime
-from bs4 import BeautifulSoup
-from urllib.parse import urlparse, parse_qs, unquote, quote
 import re
+from bs4 import BeautifulSoup
+import feedparser
+from urllib.parse import urlparse, parse_qs, unquote, quote
+
+from utils.logger import get_logger
+from database.models import Post
 
 class Post:
     """微博帖子数据类"""
@@ -24,13 +29,9 @@ class Post:
 class RSSParser:
     """RSS解析器"""
     
-    def __init__(self, feed_url: str):
-        """初始化RSS解析器
-        
-        Args:
-            feed_url: RSS源URL
-        """
-        self.feed_url = feed_url
+    def __init__(self):
+        """初始化RSS解析器"""
+        self.logger = get_logger("rss_parser")
     
     def _extract_media_files(self, soup: BeautifulSoup) -> List[Dict[str, Any]]:
         """提取媒体文件信息
@@ -166,8 +167,19 @@ class RSSParser:
         # 创建BeautifulSoup对象
         soup = BeautifulSoup(content, 'html.parser')
         
-        # 1. 处理图片
-        # 1.1 处理"查看图片"链接
+        # 1. 处理话题链接
+        for link in soup.find_all('a'):
+            span = link.find('span', class_='surl-text')
+            if not span:
+                continue
+                
+            text = span.get_text()
+            if text.startswith('#') and text.endswith('#'):
+                # 保留话题文本
+                link.replace_with(text)
+        
+        # 2. 处理图片
+        # 2.1 处理"查看图片"链接
         for link in soup.find_all('a'):
             if not link.find('span', class_='surl-text'):
                 continue
@@ -178,7 +190,7 @@ class RSSParser:
                 
             link.replace_with('{image}')
             
-        # 1.2 处理 img 标签
+        # 2.2 处理 img 标签
         for img in soup.find_all('img'):
             # 找到最外层的 a 标签（如果存在）
             parent_a = img.find_parent('a')
@@ -187,13 +199,13 @@ class RSSParser:
             else:
                 img.replace_with('{image}')
             
-        # 1.3 处理其他可能的图片链接
+        # 2.3 处理其他可能的图片链接
         for link in soup.find_all('a'):
             href = link.get('href', '')
             if 'sinaimg.cn' in href or 'wx' in href or 'image.baidu.com' in href:
                 link.replace_with('{image}')
         
-        # 2. 处理视频
+        # 3. 处理视频
         for link in soup.find_all('a'):
             href = link.get('href', '')
             if not href or 'video.weibo.com' not in href:
@@ -201,11 +213,11 @@ class RSSParser:
                 
             link.replace_with('{video}')
             
-        # 3. 处理换行标签
+        # 4. 处理换行标签
         for br in soup.find_all('br'):
             br.replace_with(' ')
             
-        # 4. 处理转发微博的div
+        # 5. 处理转发微博的div
         for div in soup.find_all('div', style=lambda x: x and 'border-left' in x):
             # 获取div的内容
             content = div.get_text(strip=True)
@@ -218,7 +230,7 @@ class RSSParser:
             # 替换div，不添加前导空格
             div.replace_with(content)
             
-        # 5. 处理@用户名链接
+        # 6. 处理@用户名链接
         for link in soup.find_all('a'):
             href = link.get('href', '')
             text = link.get_text()
@@ -226,7 +238,7 @@ class RSSParser:
             if text.startswith('@') or (href and ('weibo.com' in href or 'yangqihang.space' in href)):
                 link.replace_with(text)
         
-        # 6. 移除多余的换行和空格
+        # 7. 移除多余的换行和空格
         text = str(soup)
         # 将连续的换行替换为单个换行
         text = re.sub(r'\n\s*\n', '\n', text)
@@ -283,50 +295,86 @@ class RSSParser:
         
         return post
     
-    def parse_feed(self) -> List[Post]:
+    def parse_feed(self, feed_url: str) -> List[Post]:
         """解析RSS源
         
+        Args:
+            feed_url: RSS源URL
+            
         Returns:
             Post对象列表
         """
+        import feedparser
+        
+        self.logger.info(f"开始解析RSS源: {feed_url}")
+        
         # 解析RSS源
-        feed = feedparser.parse(self.feed_url)
+        feed = feedparser.parse(feed_url)
+        
+        # 检查是否成功获取到条目
+        if not feed.entries:
+            self.logger.warning(f"未从RSS源获取到任何条目: {feed_url}")
+            return []
+        
+        self.logger.info(f"获取到 {len(feed.entries)} 条微博")
         
         # 解析每个条目
         posts = []
         for entry in feed.entries:
-            post = self.parse_entry(entry)
-            posts.append(post)
-            
+            try:
+                post = self.parse_entry(entry)
+                posts.append(post)
+                
+                # 记录每条微博的详细信息
+                self.logger.info(f"第 {len(posts)} 条微博:")
+                self.logger.info(f"链接: {post.link}")
+                self.logger.info(f"标题: {post.title}")
+                self.logger.info(f"内容: {post.content}")
+                if post.media_files:
+                    self.logger.info(f"图片数量: {len(post.media_files)}")
+                    for i, media in enumerate(post.media_files, 1):
+                        if media['type'] == 'image':
+                            self.logger.info(f"  图片 {i}:")
+                            self.logger.info(f"    原图: {media['original_url']}")
+                            self.logger.info(f"    缩略图: {media['thumbnail_url']}")
+                            self.logger.info(f"    ID: {media['image_id']}")
+                        else:
+                            self.logger.info(f"  视频 {i}:")
+                            self.logger.info(f"    ID: {media['video_id']}")
+                            self.logger.info(f"    链接: {media['video_url']}")
+                self.logger.info(f"发布时间: {post.published_at}")
+                self.logger.info("")
+                
+            except Exception as e:
+                self.logger.error(f"解析条目时出错: {str(e)}")
+                continue
+        
         return posts
 
-if __name__ == '__main__':
-    # 测试代码
-    feed_url = 'http://yangqihang.space:8001/rss/user/3232506545'  # 测试用的RSS源
-    parser = RSSParser(feed_url)
-    posts = parser.parse_feed()
+if __name__ == "__main__":
+    # 创建RSS解析器
+    parser = RSSParser()
     
-    print(f"\n获取到 {len(posts)} 条微博:\n")
+    # 解析RSS源
+    posts = parser.parse_feed("http://yangqihang.space:8001/rss/user/3232506545")
     
-
-    # 打印第2条微博的详细信息（如果存在）
-    for post in posts:
-        print(f"第 {posts.index(post) + 1} 条微博:")
-        print(f"标题: {post.title}")
-        print(f"内容: {post.content}")
-        if post.media_files:
-            print(f"图片数量: {len(post.media_files)}")
-            for i, media in enumerate(post.media_files, 1):
-                if media['type'] == 'image':
-                    print(f"  图片 {i}:")
-                    print(f"    原图: {media['original_url']}")
-                    print(f"    缩略图: {media['thumbnail_url']}")
-                    print(f"    ID: {media['image_id']}")
-                elif media['type'] == 'video':
-                    print(f"  视频 {i}:")
-                    print(f"    ID: {media['video_id']}")
-                    print(f"    链接: {media['video_url']}")
-        print(f"链接: {post.link}")
-        print(f"发布时间: {post.published_at}")
-
-        
+    # # 打印微博信息
+    # for post in posts:
+    #     print(f"第 {posts.index(post) + 1} 条微博:")
+    #     print(f"链接: {post.link}")
+    #     print(f"标题: {post.title}")
+    #     print(f"内容: {post.content}")
+    #     if post.media_files:
+    #         print(f"图片数量: {len(post.media_files)}")
+    #         for i, media in enumerate(post.media_files, 1):
+    #             if media['type'] == 'image':
+    #                 print(f"  图片 {i}:")
+    #                 print(f"    原图: {media['original_url']}")
+    #                 print(f"    缩略图: {media['thumbnail_url']}")
+    #                 print(f"    ID: {media['image_id']}")
+    #             else:
+    #                 print(f"  视频 {i}:")
+    #                 print(f"    ID: {media['video_id']}")
+    #                 print(f"    链接: {media['video_url']}")
+    #     print(f"发布时间: {post.published_at}")
+    #     print()

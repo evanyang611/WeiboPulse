@@ -1,7 +1,7 @@
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 import logging
-from src.config.settings import DATABASE_URL
+from config.settings import DATABASE_URL
 
 # 设置SQLAlchemy的日志级别为WARNING，这样就不会显示INFO级别的日志了
 logging.getLogger('sqlalchemy.engine').setLevel(logging.WARNING)
