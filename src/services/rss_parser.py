@@ -41,22 +41,31 @@ class RSSParser:
                 video_id = re.search(r'fid=(\d+:\d+)', href).group(1)
                 media_files.append({
                     'type': 'video',
-                    'url': f'https://weibo.com/tv/show/{video_id}',
-                    'video_id': video_id
+                    'video_id': f'weibo_video_{video_id}',
+                    'video_url': f'https://weibo.com/tv/show/{video_id}',
+                    
                 })
                 continue
             
             # 处理图片链接
             if 'image.baidu.com/search/down?' in href:
+                # 从 url 参数中提取原始图片链接
+                original_url = re.search(r'url=(.*?)(?:&|$)', href).group(1)
+                original_url = requests.utils.unquote(original_url)
+                image_id = f'weibo_image_{original_url.split("/")[-1]}'
+                
                 media_files.append({
                     'type': 'image',
-                    'original_url': href,
+                    'image_id': image_id,
+                    'original_url': original_url,
                     'thumbnail_url': href.replace('large', 'orj360')
                 })
             elif re.search(r'https?://wx\d+\.sinaimg\.cn/large/', href):
                 thumbnail_url = href.replace('large', 'orj360')
+                image_id = f'weibo_image_{href.split("/")[-1]}'
                 media_files.append({
                     'type': 'image',
+                    'image_id': image_id,
                     'original_url': f'https://image.baidu.com/search/down?url={requests.utils.quote(href)}',
                     'thumbnail_url': f'https://image.baidu.com/search/down?url={requests.utils.quote(thumbnail_url)}'
                 })
@@ -193,13 +202,14 @@ def test_parser():
                 print(f"  图片 {j}:")
                 print(f"    原图: {img['original_url']}")
                 print(f"    缩略图: {img['thumbnail_url']}")
+                print(f"    ID: {img['image_id']}")
         
         # 输出视频信息
         if videos:
             print(f"视频数量: {len(videos)}")
             for j, video in enumerate(videos, 1):
                 print(f"  视频 {j}:")
-                print(f"    链接: {video['url']}")
+                print(f"    链接: {video['video_url']}")
                 print(f"    ID: {video['video_id']}")
             
         print(f"链接: {post.get('link', '')}")
