@@ -1,46 +1,85 @@
-import re
-import logging
-import requests
 import feedparser
-from bs4 import BeautifulSoup
-from datetime import datetime
 from typing import List, Dict, Any
-from src.database import Post, Image, Video
-from src.database.config import get_db
-from urllib.parse import urlparse, parse_qs, unquote
+from datetime import datetime
+from bs4 import BeautifulSoup
+from urllib.parse import urlparse, parse_qs, unquote, quote
+import re
+
+class Post:
+    """微博帖子数据类"""
+    def __init__(self, 
+                 title: str,
+                 content: str,
+                 original_content: str,
+                 link: str,
+                 published_at: datetime,
+                 media_files: List[Dict[str, Any]] = None):
+        self.title = title
+        self.content = content
+        self.original_content = original_content
+        self.link = link
+        self.published_at = published_at
+        self.media_files = media_files or []
 
 class RSSParser:
-    def __init__(self):
-        self.logger = logging.getLogger(__name__)
-        self.db = next(get_db())
-
-    def _generate_image_id(self, url: str) -> str:
-        """从URL中提取图片ID"""
-        # 处理百度图片链接
-        if 'image.baidu.com/search/down' in url:
-            parsed = urlparse(url)
-            if parsed.query:
-                query_params = parse_qs(parsed.query)
-                if 'url' in query_params:
-                    url = unquote(query_params['url'][0])
+    """RSS解析器"""
+    
+    def __init__(self, feed_url: str):
+        """初始化RSS解析器
         
-        # 处理新浪微博链接
-        if 'sinaimg.cn' in url:
-            # 提取文件名部分
-            filename = url.split('/')[-1]
-            # 如果是完整的URL，保留文件名部分
-            if '.' in filename:
-                return f"weibo_image_{filename}"
-        
-        # 如果都不匹配，使用URL的最后一部分作为ID
-        return f"weibo_image_{url.split('/')[-1]}"
-
+        Args:
+            feed_url: RSS源URL
+        """
+        self.feed_url = feed_url
+    
     def _extract_media_files(self, soup: BeautifulSoup) -> List[Dict[str, Any]]:
-        """提取媒体文件"""
+        """提取媒体文件信息
+        
+        Args:
+            soup: BeautifulSoup对象
+            
+        Returns:
+            包含媒体文件信息的列表
+        """
         media_files = []
         
         # 1. 处理图片
-        # 1.1 处理 img 标签
+        # 1.1 处理"查看图片"链接
+        for link in soup.find_all('a'):
+            if not link.find('span', class_='surl-text'):
+                continue
+            
+            text = link.get_text()
+            if '查看图片' not in text:
+                continue
+                
+            href = link.get('href', '')
+            if not href:
+                continue
+                
+            # 从链接中提取图片URL
+            parsed = urlparse(href)
+            if parsed.query:
+                query_params = parse_qs(parsed.query)
+                if 'u' in query_params:
+                    image_url = unquote(query_params['u'][0])
+                    
+                    # 如果不是以 image.baidu.com 开头，加上前缀
+                    if not image_url.startswith('https://image.baidu.com/search/down?url='):
+                        image_url = f'https://image.baidu.com/search/down?url={quote(image_url)}'
+                    
+                    # 生成图片ID
+                    image_id = self._generate_image_id(image_url)
+                    
+                    media_files.append({
+                        'type': 'image',
+                        'element': link,
+                        'image_id': image_id,
+                        'original_url': image_url,
+                        'thumbnail_url': image_url.replace('large', 'orj360')
+                    })
+        
+        # 1.2 处理 img 标签
         for img in soup.find_all('img'):
             src = img.get('src', '')
             if not src:
@@ -62,36 +101,11 @@ class RSSParser:
                 'thumbnail_url': src
             })
             
-        # 1.2 处理"查看图片"链接
+        # 1.3 处理其他可能的图片链接
         for link in soup.find_all('a'):
-            if not link.find('span', class_='surl-text'):
-                continue
-                
-            text = link.get_text()
-            if '查看图片' not in text:
-                continue
-                
             href = link.get('href', '')
-            if not href:
-                continue
-                
-            # 从链接中提取图片URL
-            parsed = urlparse(href)
-            if parsed.query:
-                query_params = parse_qs(parsed.query)
-                if 'u' in query_params:
-                    image_url = unquote(query_params['u'][0])
-                    
-                    # 生成图片ID
-                    image_id = self._generate_image_id(image_url)
-                    
-                    media_files.append({
-                        'type': 'image',
-                        'element': link,
-                        'image_id': image_id,
-                        'original_url': image_url,
-                        'thumbnail_url': image_url.replace('large', 'orj360')
-                    })
+            if 'sinaimg.cn' in href or 'wx' in href or 'image.baidu.com' in href:
+                link.replace_with('{image}')
         
         # 2. 处理视频
         for link in soup.find_all('a'):
@@ -113,228 +127,206 @@ class RSSParser:
                     })
         
         return media_files
-
-    def _process_content(self, content: str) -> str:
-        """处理微博内容，清理HTML标签，处理转发内容格式"""
-        # 使用BeautifulSoup解析HTML
-        soup = BeautifulSoup(content, 'html.parser')
-        
-        # 处理转发的内容
-        repost_div = soup.find('div', style='border-left: 3px solid gray; padding-left: 1em;')
-        if repost_div:
-            # 获取转发内容的文本
-            repost_text = repost_div.get_text(strip=True)
-            # 移除原始的转发div
-            repost_div.decompose()
-            # 将转发内容添加到主内容后面
-            content = str(soup) + ' // ' + repost_text
-            # 重新解析处理后的内容
-            soup = BeautifulSoup(content, 'html.parser')
-        
-        # 处理用户链接
-        for user_link in soup.find_all('a', href=re.compile(r'/n/')):
-            username = user_link.get_text()
-            user_link.replace_with(f"@{username}")
-        
-        # 获取文本内容
-        content = soup.get_text()
-        
-        # 清理用户名格式
-        content = re.sub(r'@([^:：\s]+)[：:]\s*', r'@\1: ', content)
-        
-        # 清理最终的多余空格
-        content = re.sub(r'\s+', ' ', content).strip()
-        
-        # 处理转发标记
-        content = re.sub(r'(?<!\S)//@', r' //@', content)  # 确保 //@ 前有空格
-        content = re.sub(r'(?<=[^/\s])@', r' //@', content)  # 将普通 @ 转换为 //@
-        content = re.sub(r'(?<=[^/])/(?=[^/])', r'//', content)  # 确保是双斜杠
-        content = re.sub(r'\s+//', r' //', content)  # 清理双斜杠前的多余空格
-        content = re.sub(r'//\s+', r'// ', content)  # 清理双斜杠后的多余空格
-        content = re.sub(r'\s+', ' ', content).strip()  # 最终清理多余空格
-        
-        return content
-
-    def _process_content_with_media(self, content: str, media_files: List[Dict[str, Any]]) -> str:
-        """处理内容，将媒体文件替换为标记"""
-        soup = BeautifulSoup(content, 'html.parser')
-        
-        # 替换媒体文件为标记
-        for media in media_files:
-            if media['type'] == 'image':
-                media['element'].replace_with(f"{{image:{media['image_id']}}}")
-            elif media['type'] == 'video':
-                media['element'].replace_with(f"{{video:{media['video_id']}}}")
-        
-        # 获取处理后的文本
-        processed_content = soup.get_text()
-        
-        # 清理用户链接
-        processed_content = re.sub(r'@([^:：\s]+)[：:]\s*', r'@\1: ', processed_content)
-        
-        # 处理转发标记
-        processed_content = re.sub(r'(?<!\S)//@', r' //@', processed_content)  # 确保 //@ 前有空格
-        processed_content = re.sub(r'(?<=[^/\s])@', r' //@', processed_content)  # 将普通 @ 转换为 //@
-        processed_content = re.sub(r'(?<=[^/])/(?=[^/])', r'//', processed_content)  # 确保是双斜杠
-        processed_content = re.sub(r'\s+//', r' //', processed_content)  # 清理双斜杠前的多余空格
-        processed_content = re.sub(r'//\s+', r'// ', processed_content)  # 清理双斜杠后的多余空格
-        
-        # 清理多余空白字符
-        processed_content = re.sub(r'\s+', ' ', processed_content)
-        processed_content = processed_content.strip()
-        
-        return processed_content
-
-    def parse_entry(self, entry: feedparser.FeedParserDict) -> Post:
-        """解析单个 RSS 条目并保存到数据库"""
-        try:
-            # 1. 从 link 中提取微博 ID
-            # 从 https://weibo.com/3232506545/PeV8K5tHr 提取 3232506545/PeV8K5tHr
-            user_id, post_id = re.search(r'weibo\.com/(\d+)/(\w+)(?:\?|$)', entry.link).groups()
-            weibo_id = f"{user_id}/{post_id}"
-            
-            # 2. 检查是否已经存在
-            existing_post = self.db.query(Post).filter(
-                Post.source == 'weibo',
-                Post.source_id == weibo_id
-            ).first()
-            
-            if existing_post:
-                self.logger.info(f"微博 {weibo_id} 已存在，跳过")
-                return existing_post
-            
-            # 3. 提取媒体文件
-            media_files = self._extract_media_files(BeautifulSoup(entry.summary, 'html.parser'))
-            
-            # 4. 创建 Post 对象
-            post = Post(
-                source='weibo',
-                source_id=weibo_id,  # 使用微博的短 ID
-                title=entry.title,
-                original_content=entry.summary,  # 使用 summary 而不是 content
-                link=entry.link,
-                published_at=datetime(*entry.published_parsed[:6])  # 使用 published_parsed
-            )
-            
-            # 5. 保存 Post 以获取 ID
-            self.db.add(post)
-            self.db.flush()
-            
-            # 6. 保存媒体文件，使用集合去重
-            saved_image_ids = set()
-            saved_video_ids = set()
-            
-            for media in media_files:
-                if media['type'] == 'image':
-                    # 如果图片已经保存过，跳过
-                    if media['image_id'] in saved_image_ids:
-                        continue
-                    saved_image_ids.add(media['image_id'])
-                    
-                    image = Image(
-                        image_id=media['image_id'],
-                        original_url=media['original_url'],
-                        thumbnail_url=media['thumbnail_url'],
-                        post_id=post.id
-                    )
-                    self.db.add(image)
-                elif media['type'] == 'video':
-                    # 如果视频已经保存过，跳过
-                    if media['video_id'] in saved_video_ids:
-                        continue
-                    saved_video_ids.add(media['video_id'])
-                    
-                    video = Video(
-                        video_id=media['video_id'],
-                        video_url=media['video_url'],
-                        post_id=post.id
-                    )
-                    self.db.add(video)
-            
-            # 7. 处理内容
-            post.content = self._process_content_with_media(
-                entry.summary,  # 使用 summary 而不是 content
-                media_files
-            )
-            
-            # 8. 提交事务
-            self.db.commit()
-            
-            return post
-            
-        except Exception as e:
-            self.db.rollback()
-            self.logger.error(f"解析微博失败: {str(e)}")
-            raise
-
-    def get_user_posts(self, user_id: str) -> List[Post]:
-        """获取用户的微博列表"""
-        try:
-            rss_url = f'http://yangqihang.space:8001/rss/user/{user_id}'
-            self.logger.info(f"正在获取用户 {user_id} 的 RSS: {rss_url}")
-            
-            response = requests.get(rss_url)
-            response.raise_for_status()
-            self.logger.info(f"RSS 内容获取成功，状态码: {response.status_code}")
-            self.logger.info(f"RSS 内容预览: {response.text[:500]}")
-            
-            feed = feedparser.parse(response.text)
-            self.logger.info(f"RSS Feed 标题: {feed.feed.title}")
-            
-            entries = feed.entries
-            self.logger.info(f"发现 {len(entries)} 条微博")
-            
-            posts = []
-            for entry in entries:
-                post = self.parse_entry(entry)
-                posts.append(post)
-            
-            self.logger.info(f"成功解析 {len(posts)} 条微博")
-            return posts
-            
-        except Exception as e:
-            self.logger.error(f"获取用户微博失败: {str(e)}")
-            raise
-
-def test_parser():
-    """测试解析器"""
-    parser = RSSParser()
-    user_id = "3232506545"
-    posts = parser.get_user_posts(user_id)
     
-    print(f"\n获取到 {len(posts)} 条微博:")
-    for i, post in enumerate(posts[1:2], 2):
-        print(f"\n第 {i} 条微博:")
-        print(f"标题: {post.title}")
-        print(f"内容: {post.content}")
+    def _generate_image_id(self, url: str) -> str:
+        """从URL中提取图片ID"""
+        # 处理百度图片链接
+        if 'image.baidu.com/search/down' in url:
+            parsed = urlparse(url)
+            if parsed.query:
+                query_params = parse_qs(parsed.query)
+                if 'url' in query_params:
+                    url = unquote(query_params['url'][0])
         
-        # 获取所有媒体文件
-        images = [image for image in post.images]
-        videos = [video for video in post.videos]
+        # 处理新浪微博链接
+        if 'sinaimg.cn' in url:
+            # 提取文件名部分
+            filename = url.split('/')[-1]
+            # 如果是完整的URL，保留文件名部分
+            if '.' in filename:
+                return f"weibo_image_{filename}"
         
-        # 输出图片信息
-        if images:
-            print(f"图片数量: {len(images)}")
-            for j, img in enumerate(images, 1):
-                print(f"  图片 {j}:")
-                print(f"    原图: {img.original_url}")
-                print(f"    缩略图: {img.thumbnail_url}")
-                print(f"    ID: {img.image_id}")
+        # 如果都不匹配，使用URL的最后一部分作为ID
+        return f"weibo_image_{url.split('/')[-1]}"
+    
+    def _process_content(self, content: str) -> str:
+        """处理微博内容，清理HTML标签，保留社交媒体元素
         
-        # 输出视频信息
-        if videos:
-            print(f"视频数量: {len(videos)}")
-            for j, video in enumerate(videos, 1):
-                print(f"  视频 {j}:")
-                print(f"    链接: {video.video_url}")
-                print(f"    ID: {video.video_id}")
+        保留的元素：
+        - @用户名
+        - #话题#
+        - 转发标记 //
+        
+        Args:
+            content: 原始HTML内容
             
-        print(f"链接: {post.link}")
-        print(f"发布时间: {post.published_at}")
+        Returns:
+            处理后的纯文本内容
+        """
+        # 创建BeautifulSoup对象
+        soup = BeautifulSoup(content, 'html.parser')
         
-        # 打印原始内容用于调试
-        print("\n原始内容:")
-        print(post.original_content)
+        # 1. 处理图片
+        # 1.1 处理"查看图片"链接
+        for link in soup.find_all('a'):
+            if not link.find('span', class_='surl-text'):
+                continue
+            
+            text = link.get_text()
+            if '查看图片' not in text:
+                continue
+                
+            link.replace_with('{image}')
+            
+        # 1.2 处理 img 标签
+        for img in soup.find_all('img'):
+            # 找到最外层的 a 标签（如果存在）
+            parent_a = img.find_parent('a')
+            if parent_a:
+                parent_a.replace_with('{image}')
+            else:
+                img.replace_with('{image}')
+            
+        # 1.3 处理其他可能的图片链接
+        for link in soup.find_all('a'):
+            href = link.get('href', '')
+            if 'sinaimg.cn' in href or 'wx' in href or 'image.baidu.com' in href:
+                link.replace_with('{image}')
+        
+        # 2. 处理视频
+        for link in soup.find_all('a'):
+            href = link.get('href', '')
+            if not href or 'video.weibo.com' not in href:
+                continue
+                
+            link.replace_with('{video}')
+            
+        # 3. 处理换行标签
+        for br in soup.find_all('br'):
+            br.replace_with(' ')
+            
+        # 4. 处理转发微博的div
+        for div in soup.find_all('div', style=lambda x: x and 'border-left' in x):
+            # 获取div的内容
+            content = div.get_text(strip=True)
+            # 如果内容以"转发"开头，移除这个词
+            if content.startswith('转发'):
+                content = content[2:].strip()
+            # 如果内容以@开头，添加 //
+            if content.startswith('@'):
+                content = '//' + content
+            # 替换div，不添加前导空格
+            div.replace_with(content)
+            
+        # 5. 处理@用户名链接
+        for link in soup.find_all('a'):
+            href = link.get('href', '')
+            text = link.get_text()
+            # 如果是@用户名的链接
+            if text.startswith('@') or (href and ('weibo.com' in href or 'yangqihang.space' in href)):
+                link.replace_with(text)
+        
+        # 6. 移除多余的换行和空格
+        text = str(soup)
+        # 将连续的换行替换为单个换行
+        text = re.sub(r'\n\s*\n', '\n', text)
+        # 在图片和视频标记之间添加空格
+        text = re.sub(r'}(\s*){', '} {', text)
+        # 在文字和图片/视频标记之间添加空格
+        text = re.sub(r'([^\s}]){(image|video)}', r'\1 {\2}', text)
+        text = re.sub(r'}{(image|video)}([^\s{])', r'} {\1} \2', text)
+        # 将连续的空格替换为单个空格
+        text = re.sub(r' +', ' ', text)
+        # 清理开头和结尾的空白字符
+        text = text.strip()
+        
+        return text
+    
+    def parse_entry(self, entry: feedparser.FeedParserDict) -> Post:
+        """解析单个RSS条目
+        
+        Args:
+            entry: RSS条目
+            
+        Returns:
+            Post对象
+        """
+        # 解析发布时间
+        try:
+            published_at = datetime.strptime(entry.published, '%a, %d %b %Y %H:%M:%S %z')
+        except ValueError:
+            # 如果带有GMT时区标识，需要特殊处理
+            if 'GMT' in entry.published:
+                published_str = entry.published.replace('GMT', '+0000')
+                published_at = datetime.strptime(published_str, '%a, %d %b %Y %H:%M:%S %z')
+            else:
+                raise
+        
+        # 创建BeautifulSoup对象解析内容
+        soup = BeautifulSoup(entry.description, 'html.parser')
+        
+        # 提取媒体文件
+        media_files = self._extract_media_files(soup)
+        
+        # 处理内容
+        processed_content = self._process_content(entry.description)
+        
+        # 创建Post对象
+        post = Post(
+            title=entry.title,
+            content=processed_content,  # 使用处理后的内容
+            original_content=entry.description,
+            link=entry.link,
+            published_at=published_at,
+            media_files=media_files
+        )
+        
+        return post
+    
+    def parse_feed(self) -> List[Post]:
+        """解析RSS源
+        
+        Returns:
+            Post对象列表
+        """
+        # 解析RSS源
+        feed = feedparser.parse(self.feed_url)
+        
+        # 解析每个条目
+        posts = []
+        for entry in feed.entries:
+            post = self.parse_entry(entry)
+            posts.append(post)
+            
+        return posts
 
 if __name__ == '__main__':
-    test_parser()
+    # 测试代码
+    feed_url = 'http://yangqihang.space:8001/rss/user/3232506545'  # 测试用的RSS源
+    parser = RSSParser(feed_url)
+    posts = parser.parse_feed()
+    
+    print(f"\n获取到 {len(posts)} 条微博:\n")
+    
+
+    # 打印第2条微博的详细信息（如果存在）
+    for post in posts:
+        print(f"第 {posts.index(post) + 1} 条微博:")
+        print(f"标题: {post.title}")
+        print(f"内容: {post.content}")
+        if post.media_files:
+            print(f"图片数量: {len(post.media_files)}")
+            for i, media in enumerate(post.media_files, 1):
+                if media['type'] == 'image':
+                    print(f"  图片 {i}:")
+                    print(f"    原图: {media['original_url']}")
+                    print(f"    缩略图: {media['thumbnail_url']}")
+                    print(f"    ID: {media['image_id']}")
+                elif media['type'] == 'video':
+                    print(f"  视频 {i}:")
+                    print(f"    ID: {media['video_id']}")
+                    print(f"    链接: {media['video_url']}")
+        print(f"链接: {post.link}")
+        print(f"发布时间: {post.published_at}")
+
+        
