@@ -27,14 +27,24 @@ class RSSParser:
         media_files = []
         soup = bs(content, 'html.parser')
         
-        # 处理图片链接
-        for img_link in soup.find_all('a', href=True):
-            href = img_link['href']
+        # 处理所有链接
+        for link in soup.find_all('a', href=True):
+            href = link['href']
             
             # 处理跳转链接
             if 'sinaurl?u=' in href:
                 href = re.search(r'u=(.*?)(?:&|$)', href).group(1)
                 href = requests.utils.unquote(href)
+            
+            # 处理视频链接
+            if 'video.weibo.com/show?fid=' in href:
+                video_id = re.search(r'fid=(\d+:\d+)', href).group(1)
+                media_files.append({
+                    'type': 'video',
+                    'url': f'https://weibo.com/tv/show/{video_id}',
+                    'video_id': video_id
+                })
+                continue
             
             # 处理图片链接
             if 'image.baidu.com/search/down?' in href:
@@ -170,7 +180,28 @@ def test_parser():
         print(f"\n第 {i} 条微博:")
         print(f"标题: {post.get('title', '')}")
         print(f"内容: {post.get('content', '')}")
-        print(f"图片数量: {len(post.get('media_files', []))}")
+        
+        # 获取所有媒体文件
+        media_files = post.get('media_files', [])
+        images = [m for m in media_files if m['type'] == 'image']
+        videos = [m for m in media_files if m['type'] == 'video']
+        
+        # 输出图片信息
+        if images:
+            print(f"图片数量: {len(images)}")
+            for j, img in enumerate(images, 1):
+                print(f"  图片 {j}:")
+                print(f"    原图: {img['original_url']}")
+                print(f"    缩略图: {img['thumbnail_url']}")
+        
+        # 输出视频信息
+        if videos:
+            print(f"视频数量: {len(videos)}")
+            for j, video in enumerate(videos, 1):
+                print(f"  视频 {j}:")
+                print(f"    链接: {video['url']}")
+                print(f"    ID: {video['video_id']}")
+            
         print(f"链接: {post.get('link', '')}")
         print(f"发布时间: {post.get('published', '')}")
 
