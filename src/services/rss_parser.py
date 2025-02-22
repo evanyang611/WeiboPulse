@@ -167,19 +167,8 @@ class RSSParser:
         # 创建BeautifulSoup对象
         soup = BeautifulSoup(content, 'html.parser')
         
-        # 1. 处理话题链接
-        for link in soup.find_all('a'):
-            span = link.find('span', class_='surl-text')
-            if not span:
-                continue
-                
-            text = span.get_text()
-            if text.startswith('#') and text.endswith('#'):
-                # 保留话题文本
-                link.replace_with(text)
-        
-        # 2. 处理图片
-        # 2.1 处理"查看图片"链接
+        # 1. 处理图片
+        # 1.1 处理"查看图片"链接
         for link in soup.find_all('a'):
             if not link.find('span', class_='surl-text'):
                 continue
@@ -190,7 +179,7 @@ class RSSParser:
                 
             link.replace_with('{image}')
             
-        # 2.2 处理 img 标签
+        # 1.2 处理 img 标签
         for img in soup.find_all('img'):
             # 找到最外层的 a 标签（如果存在）
             parent_a = img.find_parent('a')
@@ -199,13 +188,13 @@ class RSSParser:
             else:
                 img.replace_with('{image}')
             
-        # 2.3 处理其他可能的图片链接
+        # 1.3 处理其他可能的图片链接
         for link in soup.find_all('a'):
             href = link.get('href', '')
             if 'sinaimg.cn' in href or 'wx' in href or 'image.baidu.com' in href:
                 link.replace_with('{image}')
         
-        # 3. 处理视频
+        # 2. 处理视频
         for link in soup.find_all('a'):
             href = link.get('href', '')
             if not href or 'video.weibo.com' not in href:
@@ -213,9 +202,26 @@ class RSSParser:
                 
             link.replace_with('{video}')
             
-        # 4. 处理换行标签
+        # 3. 处理换行标签
         for br in soup.find_all('br'):
-            br.replace_with(' ')
+            br.replace_with('\n')
+
+        # 4. 处理话题链接和超话链接
+        for link in soup.find_all('a'):
+            span = link.find('span', class_='surl-text')
+            if not span:
+                continue
+                
+            text = span.get_text()
+            # 处理带#号的话题
+            if text.startswith('#') and text.endswith('#'):
+                # 保留话题文本
+                link.replace_with(text)
+            # 处理超话链接（通过链接判断）
+            elif 'containerid=1008' in link.get('href', ''):
+                # 将超话文本用【】包裹
+                link.replace_with(f'【{text}超话】')
+        
             
         # 5. 处理转发微博的div
         for div in soup.find_all('div', style=lambda x: x and 'border-left' in x):
