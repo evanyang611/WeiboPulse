@@ -6,41 +6,27 @@ import re
 from bs4 import BeautifulSoup
 import feedparser
 from urllib.parse import urlparse, parse_qs, unquote, quote
-
-from utils.logger import get_logger
-from database.models import Post
 import asyncio
+import time
+from sqlalchemy.orm import Session
+from database.models import Post, Account, Image, Video
+from database.config import get_db
+from utils.logger import get_logger
 from .image_downloader import ImageDownloader
-
-class Post:
-    """微博帖子数据类"""
-    def __init__(self, 
-                 title: str,
-                 content: str,
-                 original_content: str,
-                 link: str,
-                 published_at: datetime,
-                 media_files: List[Dict[str, Any]] = None):
-        self.title = title
-        self.content = content
-        self.original_content = original_content
-        self.link = link
-        self.published_at = published_at
-        self.media_files = media_files or []
 
 class RSSParser:
     """RSS解析器"""
     
     def __init__(self, if_download: bool = True):
-        """初始化RSS解析器
+        """初始化解析器
         
         Args:
-            if_download: 是否下载图片
+            if_download: 是否下载媒体文件
         """
         self.logger = get_logger("rss_parser")
-        self.image_downloader = ImageDownloader()
-
+        self.db = next(get_db())
         self.if_download = if_download
+        self.image_downloader = ImageDownloader()
     
     def _extract_media_files(self, soup: BeautifulSoup) -> List[Dict[str, Any]]:
         """提取媒体文件信息
@@ -132,7 +118,7 @@ class RSSParser:
                     media_files.append({
                         'type': 'video',
                         'element': link,
-                        'video_id': video_id,
+                        'video_id': 'weibo_video_' + video_id,
                         'video_url': href
                     })
         
@@ -158,6 +144,20 @@ class RSSParser:
         
         # 如果都不匹配，使用URL的最后一部分作为ID
         return f"weibo_image_{url.split('/')[-1]}"
+    
+    def _extract_source_id(self, link: str) -> str:
+        """从微博链接中提取source_id
+        
+        Args:
+            link: 微博链接，格式如 https://weibo.com/5130681470/PbuKhjSsU
+            
+        Returns:
+            source_id: 微博ID，格式如 5130681470/PbuKhjSsU
+        """
+        parts = link.split('/')
+        if len(parts) >= 2:
+            return f"{parts[-2]}/{parts[-1]}"
+        return link.split('/')[-1]  # 如果链接格式不对，返回最后一部分
     
     def _process_content(self, content: str) -> str:
         """处理微博内容，清理HTML标签，保留社交媒体元素
@@ -269,12 +269,76 @@ class RSSParser:
         
         return text
     
-    def parse_entry(self, entry: feedparser.FeedParserDict) -> Post:
+    async def _download_media_files(self, media_files: List[Dict[str, Any]]) -> None:
+        """下载媒体文件
+        
+        Args:
+            media_files: 媒体文件信息列表
+        """
+        success = 0
+        total = len([m for m in media_files if m['type'] == 'image'])
+        
+        if total == 0:
+            return
+            
+        self.logger.info(f"开始下载图片，共 {total} 张")
+        
+        for media in media_files:
+            if media['type'] == 'image':
+                if await self.image_downloader.download_image(media):
+                    success += 1
+                    
+        self.logger.info(f"图片下载完成: 成功 {success}/{total} 张")
+
+    def _save_media_files(self, media_files: List[Dict[str, Any]], post: Post, session) -> None:
+        """保存媒体文件到数据库
+        
+        Args:
+            media_files: 媒体文件信息列表
+            post: 关联的Post对象
+            session: 数据库会话
+        """
+        for media in media_files:
+            if media['type'] == 'image':
+                # 创建新的Image对象
+                image = Image(
+                    image_id=media['image_id'],
+                    original_url=media['original_url'],
+                    thumbnail_url=media['thumbnail_url'],
+                    post_id=post.id
+                )
+                session.add(image)
+                self.logger.info(f"发现图片: {media['image_id']}")
+                self.logger.info(f"原图链接: {media['original_url']}")
+                self.logger.info(f"缩略图链接: {media['thumbnail_url']}")
+                self.logger.info("")
+            
+            elif media['type'] == 'video':
+                # 创建新的Video对象
+                video = Video(
+                    video_id=media['video_id'],
+                    video_url=media['video_url'],
+                    post_id=post.id
+                )
+                session.add(video)
+                self.logger.info(f"发现视频: {media['video_id']}")
+                self.logger.info(f"视频链接: {media['video_url']}")
+                self.logger.info("")
+        
+        try:
+            session.commit()
+        except Exception as e:
+            session.rollback()
+            self.logger.error(f"保存媒体文件失败: {str(e)}")
+            raise
+
+    def parse_entry(self, entry: feedparser.FeedParserDict, account: Optional[Account] = None) -> Post:
         """解析单个RSS条目
         
         Args:
             entry: RSS条目
-            
+            account: 关联的账号对象
+
         Returns:
             Post对象
         """
@@ -298,29 +362,50 @@ class RSSParser:
         # 处理内容
         processed_content = self._process_content(entry.description)
         
-        # 创建Post对象
+        # 从链接中提取source_id
+        source_id = self._extract_source_id(entry.link)
+        
+        # 检查是否已存在
+        existing_post = self.db.query(Post).filter(Post.source_id == source_id).first()
+        if existing_post:
+            self.logger.info(f"微博已存在: {entry.link}")
+            return existing_post
+        
+        # 创建新的Post对象
         post = Post(
+            source='weibo',
+            source_id=source_id,
             title=entry.title,
             content=processed_content,  # 使用处理后的内容
             original_content=entry.description,
             link=entry.link,
             published_at=published_at,
-            media_files=media_files
+            account=account  # 关联Account对象
         )
+        
+        # 保存到数据库
+        self.db.add(post)
+        self.db.commit()
+        
+        # 保存媒体文件
+        self._save_media_files(media_files, post, self.db)
+        
+        # 如果启用了下载功能，下载媒体文件
+        if self.if_download and media_files:
+            asyncio.run(self._download_media_files(media_files))
         
         return post
     
-    def parse_feed(self, feed_url: str) -> List[Post]:
+    def parse_feed(self, feed_url: str, account: Optional[Account] = None) -> List[Post]:
         """解析RSS源
         
         Args:
             feed_url: RSS源URL
-            
+            account: 关联的账号对象
+
         Returns:
             Post对象列表
         """
-        import feedparser
-        
         self.logger.info(f"开始解析RSS源: {feed_url}")
         
         # 解析RSS源
@@ -337,16 +422,7 @@ class RSSParser:
         posts = []
         for entry in feed.entries:
             try:
-                post = self.parse_entry(entry)
-                
-                # 下载图片
-                if post.media_files and self.if_download:
-                    # 创建事件循环
-                    loop = asyncio.new_event_loop()
-                    asyncio.set_event_loop(loop)
-                    # 运行下载任务
-                    loop.run_until_complete(self.image_downloader.download_images(post.media_files))
-                    loop.close()
+                post = self.parse_entry(entry, account)
                 
                 posts.append(post)
                 
@@ -355,23 +431,11 @@ class RSSParser:
                 self.logger.info(f"链接: {post.link}")
                 self.logger.info(f"标题: {post.title}")
                 self.logger.info(f"内容: {post.content}")
-                if post.media_files:
-                    self.logger.info(f"图片数量: {len([m for m in post.media_files if m['type'] == 'image'])}")
-                    for i, media in enumerate(post.media_files, 1):
-                        if media['type'] == 'image':
-                            self.logger.info(f"  图片 {i}:")
-                            self.logger.info(f"    原图: {media['original_url']}")
-                            self.logger.info(f"    缩略图: {media['thumbnail_url']}")
-                            self.logger.info(f"    ID: {media['image_id']}")
-                        else:
-                            self.logger.info(f"  视频 {i}:")
-                            self.logger.info(f"    ID: {media['video_id']}")
-                            self.logger.info(f"    链接: {media['video_url']}")
                 self.logger.info(f"发布时间: {post.published_at}")
-                self.logger.info("")
                 
             except Exception as e:
                 self.logger.error(f"解析条目时出错: {str(e)}")
+                self.db.rollback()
                 continue
         
         return posts
@@ -389,17 +453,5 @@ if __name__ == "__main__":
     #     print(f"链接: {post.link}")
     #     print(f"标题: {post.title}")
     #     print(f"内容: {post.content}")
-    #     if post.media_files:
-    #         print(f"图片数量: {len(post.media_files)}")
-    #         for i, media in enumerate(post.media_files, 1):
-    #             if media['type'] == 'image':
-    #                 print(f"  图片 {i}:")
-    #                 print(f"    原图: {media['original_url']}")
-    #                 print(f"    缩略图: {media['thumbnail_url']}")
-    #                 print(f"    ID: {media['image_id']}")
-    #             else:
-    #                 print(f"  视频 {i}:")
-    #                 print(f"    ID: {media['video_id']}")
-    #                 print(f"    链接: {media['video_url']}")
     #     print(f"发布时间: {post.published_at}")
     #     print()

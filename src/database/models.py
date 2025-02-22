@@ -4,6 +4,27 @@ from sqlalchemy.orm import relationship, declarative_base
 
 Base = declarative_base()
 
+
+class Account(Base):
+    """账号模型"""
+    __tablename__ = 'accounts'
+
+    id = Column(Integer, primary_key=True)
+    source = Column(String(32), default='weibo', nullable=False)  # 默认为weibo
+    account_id = Column(String(32), unique=True, nullable=False)  # weibo 原始ID
+    account_name = Column(String(128), nullable=False)  # 账号名称
+    account_subtitle = Column(String(256))  # 账号备注
+    account_link = Column(String(512))  # 账号链接
+    rss_link = Column(String(512))  # RSS链接
+    created_at = Column(DateTime, default=datetime.now, nullable=False)
+    updated_at = Column(DateTime, default=datetime.now, onupdate=datetime.now, nullable=False)
+
+    # 关联关系
+    posts = relationship("Post", back_populates="account")
+
+    def __repr__(self):
+        return f"<Account(source='{self.source}', account_id='{self.account_id}', name='{self.account_name}')>"
+
 class Post(Base):
     """微博帖子模型"""
     __tablename__ = 'posts'
@@ -19,9 +40,13 @@ class Post(Base):
     created_at = Column(DateTime, default=datetime.now)
     updated_at = Column(DateTime, default=datetime.now, onupdate=datetime.now)
 
+    # 添加外键关联
+    account_id = Column(Integer, ForeignKey('accounts.id'), nullable=False)
+
     # 关联关系
     images = relationship("Image", back_populates="post")
     videos = relationship("Video", back_populates="post")
+    account = relationship("Account", back_populates="posts")
 
     def __repr__(self):
         return f"<Post(source='{self.source}', source_id='{self.source_id}', title='{self.title}')>"
@@ -67,3 +92,4 @@ class Video(Base):
 
     def __repr__(self):
         return f"<Video(video_id='{self.video_id}')>"
+
