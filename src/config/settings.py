@@ -12,6 +12,8 @@ LOG_DIR = os.getenv('LOG_DIR', BASE_DIR / "logs")
 DB_DIR = os.path.join(DATA_DIR, 'db')
 MEDIA_DIR = os.path.join(DATA_DIR, 'media')
 IMAGES_DIR = os.path.join(MEDIA_DIR, 'images')
+ORIGINAL_IMAGES_DIR = os.path.join(IMAGES_DIR, 'original')
+THUMBNAIL_IMAGES_DIR = os.path.join(IMAGES_DIR, 'thumbnail')
 VIDEOS_DIR = os.path.join(MEDIA_DIR, 'videos')
 
 # 数据库配置

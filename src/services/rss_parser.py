@@ -9,6 +9,8 @@ from urllib.parse import urlparse, parse_qs, unquote, quote
 
 from utils.logger import get_logger
 from database.models import Post
+import asyncio
+from .image_downloader import ImageDownloader
 
 class Post:
     """微博帖子数据类"""
@@ -29,9 +31,16 @@ class Post:
 class RSSParser:
     """RSS解析器"""
     
-    def __init__(self):
-        """初始化RSS解析器"""
+    def __init__(self, if_download: bool = True):
+        """初始化RSS解析器
+        
+        Args:
+            if_download: 是否下载图片
+        """
         self.logger = get_logger("rss_parser")
+        self.image_downloader = ImageDownloader()
+
+        self.if_download = if_download
     
     def _extract_media_files(self, soup: BeautifulSoup) -> List[Dict[str, Any]]:
         """提取媒体文件信息
@@ -329,6 +338,16 @@ class RSSParser:
         for entry in feed.entries:
             try:
                 post = self.parse_entry(entry)
+                
+                # 下载图片
+                if post.media_files and self.if_download:
+                    # 创建事件循环
+                    loop = asyncio.new_event_loop()
+                    asyncio.set_event_loop(loop)
+                    # 运行下载任务
+                    loop.run_until_complete(self.image_downloader.download_images(post.media_files))
+                    loop.close()
+                
                 posts.append(post)
                 
                 # 记录每条微博的详细信息
@@ -337,7 +356,7 @@ class RSSParser:
                 self.logger.info(f"标题: {post.title}")
                 self.logger.info(f"内容: {post.content}")
                 if post.media_files:
-                    self.logger.info(f"图片数量: {len(post.media_files)}")
+                    self.logger.info(f"图片数量: {len([m for m in post.media_files if m['type'] == 'image'])}")
                     for i, media in enumerate(post.media_files, 1):
                         if media['type'] == 'image':
                             self.logger.info(f"  图片 {i}:")
