@@ -1,0 +1,206 @@
+{% extends "base.html" %}
+
+{% block title %}首页 - 微博RSS解析器{% endblock %}
+
+{% block content %}
+<div class="row">
+    <!-- 侧边栏 -->
+    <div class="col-md-3">
+        <div class="card mb-4">
+            <div class="card-header">
+                <h5 class="card-title mb-0">筛选</h5>
+            </div>
+            <div class="card-body">
+                <h6 class="mb-2">分组</h6>
+                <div class="list-group mb-3">
+                    <a href="/" class="list-group-item list-group-item-action {% if not current_group %}active{% endif %}">
+                        全部
+                    </a>
+                    {% for group in groups %}
+                    <a href="/?group={{ group }}" class="list-group-item list-group-item-action {% if current_group == group %}active{% endif %}">
+                        {{ group }}
+                    </a>
+                    {% endfor %}
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 主内容区 -->
+    <div class="col-md-9">
+        <div class="d-flex justify-content-between align-items-center mb-3">
+            <h2>微博列表 {% if current_group %}<span class="badge bg-secondary">{{ current_group }}</span>{% endif %}</h2>
+            <span class="text-muted">共 {{ total_posts }} 条微博</span>
+        </div>
+
+        {% if posts %}
+            {% for post in posts %}
+            <div class="card post-card">
+                <div class="post-header">
+                    <div class="d-flex justify-content-between align-items-center">
+                        <div>
+                            <h5 class="mb-0">{{ post.account.account_name }}</h5>
+                            <span class="text-muted">@{{ post.account.account_id }}</span>
+                            {% if post.account.group != 'default' %}
+                            <span class="group-badge">{{ post.account.group }}</span>
+                            {% endif %}
+                        </div>
+                        <a href="{{ post.link }}" target="_blank" class="btn btn-sm btn-outline-primary">原文</a>
+                    </div>
+                </div>
+                <div class="post-content">
+                    <h5>{{ post.title }}</h5>
+                    <div class="mt-3">{{ post.content|safe }}</div>
+
+                    {% if post.images %}
+                    <div class="media-gallery">
+                        {% for image in post.images %}
+                        <div class="media-item {% if post.images|length == 1 %}single{% elif post.images|length == 2 %}double{% else %}triple{% endif %}">
+                            <img src="/images/thumbnail/{{ image.image_id }}" alt="图片" class="img-fluid thumbnail-img" 
+                                 data-bs-toggle="modal" data-bs-target="#imageModal" 
+                                 data-image-src="/images/original/{{ image.image_id }}" data-image-index="{{ loop.index0 }}">
+                        </div>
+                        {% endfor %}
+                    </div>
+                    {% endif %}
+                </div>
+                <div class="post-footer">
+                    <div class="d-flex justify-content-between">
+                        <span>发布时间: {{ post.published_at.strftime('%Y-%m-%d %H:%M:%S') }}</span>
+                        <span>ID: {{ post.source_id }}</span>
+                    </div>
+                </div>
+            </div>
+            {% endfor %}
+
+            <!-- 分页 -->
+            {% if total_pages > 1 %}
+            <nav aria-label="Page navigation">
+                <ul class="pagination justify-content-center mt-4">
+                    <li class="page-item {% if page == 1 %}disabled{% endif %}">
+                        <a class="page-link" href="?page={{ page - 1 }}{% if current_group %}&group={{ current_group }}{% endif %}" aria-label="Previous">
+                            <span aria-hidden="true">&laquo;</span>
+                        </a>
+                    </li>
+                    
+                    {% for p in range(1, total_pages + 1) %}
+                        {% if p == 1 or p == total_pages or (p >= page - 2 and p <= page + 2) %}
+                            <li class="page-item {% if p == page %}active{% endif %}">
+                                <a class="page-link" href="?page={{ p }}{% if current_group %}&group={{ current_group }}{% endif %}">{{ p }}</a>
+                            </li>
+                        {% elif p == page - 3 or p == page + 3 %}
+                            <li class="page-item disabled">
+                                <a class="page-link" href="#">...</a>
+                            </li>
+                        {% endif %}
+                    {% endfor %}
+                    
+                    <li class="page-item {% if page == total_pages %}disabled{% endif %}">
+                        <a class="page-link" href="?page={{ page + 1 }}{% if current_group %}&group={{ current_group }}{% endif %}" aria-label="Next">
+                            <span aria-hidden="true">&raquo;</span>
+                        </a>
+                    </li>
+                </ul>
+            </nav>
+            {% endif %}
+        {% else %}
+            <div class="alert alert-info">
+                暂无微博数据
+            </div>
+        {% endif %}
+    </div>
+</div>
+
+<!-- 图片查看模态框 -->
+<div class="modal fade" id="imageModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-fullscreen">
+        <div class="modal-content bg-dark bg-opacity-75">
+            <div class="modal-body d-flex justify-content-center align-items-center position-relative">
+                <button type="button" class="btn-close btn-close-white position-absolute top-0 end-0 m-3" data-bs-dismiss="modal" aria-label="Close"></button>
+                
+                <button class="btn btn-light position-absolute start-0 top-50 translate-middle-y ms-5 nav-btn" id="prevImageBtn">
+                    &lt;
+                </button>
+                
+                <img src="" id="modalImage" class="img-fluid">
+                
+                <button class="btn btn-light position-absolute end-0 top-50 translate-middle-y me-5 nav-btn" id="nextImageBtn">
+                    &gt;
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+{% block extra_js %}
+<script>
+    // 初始化上一张/下一张按钮事件监听器
+    document.addEventListener('DOMContentLoaded', function() {
+        const prevBtn = document.getElementById('prevImageBtn');
+        const nextBtn = document.getElementById('nextImageBtn');
+        let currentImages = [];
+        let currentIndex = 0;
+        
+        // 缩略图点击事件
+        document.querySelectorAll('.thumbnail-img').forEach(function(img) {
+            img.addEventListener('click', function() {
+                const originalSrc = this.getAttribute('data-image-src');
+                const imageIndex = parseInt(this.getAttribute('data-image-index'));
+                
+                // 获取同一帖子中的所有图片
+                currentImages = Array.from(this.closest('.media-gallery').querySelectorAll('.thumbnail-img'));
+                currentIndex = imageIndex;
+                
+                // 设置模态框图片
+                document.getElementById('modalImage').src = originalSrc;
+                
+                // 更新上一张/下一张按钮状态
+                updateNavigationButtons();
+            });
+        });
+        
+        // 上一张按钮点击事件
+        prevBtn.addEventListener('click', function() {
+            if (currentIndex > 0) {
+                currentIndex--;
+                const prevImage = currentImages[currentIndex];
+                document.getElementById('modalImage').src = prevImage.getAttribute('data-image-src');
+                updateNavigationButtons();
+            }
+        });
+        
+        // 下一张按钮点击事件
+        nextBtn.addEventListener('click', function() {
+            if (currentIndex < currentImages.length - 1) {
+                currentIndex++;
+                const nextImage = currentImages[currentIndex];
+                document.getElementById('modalImage').src = nextImage.getAttribute('data-image-src');
+                updateNavigationButtons();
+            }
+        });
+        
+        // 更新导航按钮显示状态
+        function updateNavigationButtons() {
+            if (currentIndex > 0) {
+                prevBtn.style.display = 'block';
+            } else {
+                prevBtn.style.display = 'none';
+            }
+            
+            if (currentIndex < currentImages.length - 1) {
+                nextBtn.style.display = 'block';
+            } else {
+                nextBtn.style.display = 'none';
+            }
+        }
+        
+        // 点击模态框背景关闭
+        document.querySelector('.modal-content').addEventListener('click', function(e) {
+            if (e.target === this || e.target.classList.contains('modal-body')) {
+                document.querySelector('[data-bs-dismiss="modal"]').click();
+            }
+        });
+    });
+</script>
+{% endblock %}
+{% endblock %}

@@ -28,3 +28,7 @@ SCHEDULE_INTERVAL = 60  # 秒
 
 # 下载配置
 DOWNLOAD_TIMEOUT = 30  # 秒
+
+# Web应用配置
+WEB_HOST = os.getenv('WEB_HOST', '127.0.0.1')
+WEB_PORT = int(os.getenv('WEB_PORT', 8080))

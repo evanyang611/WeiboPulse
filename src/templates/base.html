@@ -1,0 +1,193 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{% block title %}WeiboScraper{% endblock %}</title>
+    <!-- 使用Bootstrap 5 -->
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/css/bootstrap.min.css" rel="stylesheet">
+    <!-- 自定义CSS -->
+    <style>
+        body {
+            padding-top: 60px;
+            padding-bottom: 40px;
+            background-color: #f8f9fa;
+        }
+        .post-card {
+            margin-bottom: 20px;
+            border-radius: 10px;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+            overflow: hidden;
+        }
+        .post-header {
+            padding: 15px;
+            background-color: #f8f9fa;
+            border-bottom: 1px solid #eee;
+        }
+        .post-content {
+            padding: 20px;
+        }
+        .post-footer {
+            padding: 10px 15px;
+            background-color: #f8f9fa;
+            border-top: 1px solid #eee;
+            font-size: 0.9em;
+            color: #6c757d;
+        }
+        .media-gallery {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 10px;
+            margin-top: 15px;
+        }
+        .media-item {
+            border-radius: 5px;
+            overflow: hidden;
+            position: relative;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.12), 0 1px 2px rgba(0,0,0,0.24);
+            transition: all 0.3s cubic-bezier(.25,.8,.25,1);
+            max-height: 250px;
+        }
+        .media-item.single {
+            width: calc(33.33% - 7px);
+            margin: 0;
+            max-height: 400px;
+        }
+        .media-item.double {
+            width: calc(33.33% - 7px);
+        }
+        .media-item.triple {
+            width: calc(33.33% - 7px);
+        }
+        .media-item:hover {
+            box-shadow: 0 5px 15px rgba(0,0,0,0.25), 0 4px 10px rgba(0,0,0,0.22);
+            transform: translateY(-2px);
+        }
+        .media-item img {
+            width: 100%;
+            height: 100%;
+            transition: transform 0.3s;
+        }
+        .thumbnail-img {
+            cursor: pointer;
+            object-fit: cover;
+        }
+        .modal-xl {
+            max-width: 90%;
+        }
+        #modalImage {
+            max-width: 100%;
+            max-height: 80vh;
+        }
+        .video-badge {
+            position: absolute;
+            top: 10px;
+            right: 10px;
+            background-color: rgba(0,0,0,0.7);
+            color: white;
+            padding: 3px 8px;
+            border-radius: 4px;
+            font-size: 0.8em;
+        }
+        .navbar-brand {
+            font-weight: bold;
+        }
+        .active-nav {
+            font-weight: bold;
+            color: #0d6efd !important;
+        }
+        .account-card {
+            margin-bottom: 15px;
+            border-radius: 8px;
+            overflow: hidden;
+        }
+        .account-disabled {
+            opacity: 0.6;
+        }
+        .group-badge {
+            font-size: 0.8em;
+            padding: 3px 8px;
+            border-radius: 10px;
+            background-color: #e9ecef;
+            color: #495057;
+            margin-left: 5px;
+        }
+        .modal-body img {
+            max-height: 80vh;
+        }
+        
+        #prevImageBtn, #nextImageBtn {
+            opacity: 0.7;
+            transition: opacity 0.3s, background-color 0.3s;
+            z-index: 1050;
+        }
+        
+        #prevImageBtn:hover, #nextImageBtn:hover {
+            opacity: 1;
+        }
+        
+        .nav-btn {
+            width: 50px;
+            height: 50px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 24px;
+            font-weight: bold;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.2);
+            background-color: rgba(255,255,255,0.9);
+            border: none;
+        }
+        
+        .nav-btn:hover {
+            background-color: #fff;
+        }
+    </style>
+    {% block extra_css %}{% endblock %}
+</head>
+<body>
+    <!-- 导航栏 -->
+    <nav class="navbar navbar-expand-lg navbar-light bg-light fixed-top">
+        <div class="container">
+            <a class="navbar-brand" href="/">WeiboScraper</a>
+            <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav" aria-controls="navbarNav" aria-expanded="false" aria-label="Toggle navigation">
+                <span class="navbar-toggler-icon"></span>
+            </button>
+            <div class="collapse navbar-collapse" id="navbarNav">
+                <ul class="navbar-nav">
+                    <li class="nav-item">
+                        <a class="nav-link {% if request.url.path == '/' %}active-nav{% endif %}" href="/">首页</a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link {% if request.url.path == '/settings' %}active-nav{% endif %}" href="/settings">设置</a>
+                    </li>
+                </ul>
+            </div>
+        </div>
+    </nav>
+
+    <!-- 主要内容 -->
+    <div class="container mt-4">
+        {% block content %}{% endblock %}
+    </div>
+
+    <!-- 页脚 -->
+    <footer class="footer mt-5 py-3 bg-light">
+        <div class="container text-center">
+            <span class="text-muted">WeiboScraper &copy; 2025</span>
+        </div>
+    </footer>
+
+    <!-- JavaScript -->
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/js/bootstrap.bundle.min.js"></script>
+    {% block extra_js %}{% endblock %}
+    <script>
+        // 启用所有工具提示
+        var tooltipTriggerList = [].slice.call(document.querySelectorAll('[data-bs-toggle="tooltip"]'))
+        var tooltipList = tooltipTriggerList.map(function (tooltipTriggerEl) {
+            return new bootstrap.Tooltip(tooltipTriggerEl)
+        })
+    </script>
+</body>
+</html>

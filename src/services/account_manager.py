@@ -146,7 +146,7 @@ class AccountManager:
             return False
             
     def get_account(self, account_id: str) -> Optional[Account]:
-        """获取账号信息
+        """获取单个账号
         
         Args:
             account_id: 微博账号ID
@@ -156,9 +156,10 @@ class AccountManager:
         """
         try:
             with Session(self.engine) as session:
-                return session.query(Account).filter_by(account_id=account_id).first()
+                account = session.query(Account).filter_by(account_id=account_id).first()
+                return account
         except Exception as e:
-            self.logger.error(f"获取账号信息时出错: {str(e)}")
+            self.logger.error(f"获取账号时出错: {str(e)}")
             return None
     
     def list_accounts(self, include_disabled: bool = False, group: Optional[str] = None) -> List[Account]:
@@ -189,17 +190,15 @@ class AccountManager:
             return []
     
     def list_groups(self) -> List[str]:
-        """获取所有分组列表
+        """获取所有分组
         
         Returns:
-            List[str]: 分组名称列表
+            list: 分组列表
         """
         try:
             with Session(self.engine) as session:
-                # 查询所有不同的分组名称
-                groups = session.query(Account.group).distinct().all()
-                # 将结果转换为字符串列表
-                return [g[0] for g in groups]
+                groups = session.query(Account.group).filter(Account.status == 1).distinct().all()
+                return [group[0] for group in groups]
         except Exception as e:
-            self.logger.error(f"获取分组列表时出错: {str(e)}")
+            self.logger.error(f"获取分组列表时出错: {e}")
             return []
