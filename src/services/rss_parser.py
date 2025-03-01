@@ -311,7 +311,6 @@ class RSSParser:
                 self.logger.info(f"发现图片: {media['image_id']}")
                 self.logger.info(f"原图链接: {media['original_url']}")
                 self.logger.info(f"缩略图链接: {media['thumbnail_url']}")
-                self.logger.info("")
             
             elif media['type'] == 'video':
                 # 创建新的Video对象

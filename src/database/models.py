@@ -1,5 +1,5 @@
 from datetime import datetime
-from sqlalchemy import Column, Integer, String, DateTime, ForeignKey, create_engine, Text, UniqueConstraint
+from sqlalchemy import Column, Integer, String, DateTime, ForeignKey, create_engine, Text, UniqueConstraint, Boolean
 from sqlalchemy.orm import relationship, declarative_base
 
 Base = declarative_base()
@@ -16,6 +16,8 @@ class Account(Base):
     account_subtitle = Column(String(256))  # 账号备注
     account_link = Column(String(512))  # 账号链接
     rss_link = Column(String(512))  # RSS链接
+    status = Column(Integer, default=1, nullable=False)  # 订阅状态，1表示正常订阅，0表示禁用
+    group = Column(String(64), default='default')  # 账号分组，默认为'default'
     created_at = Column(DateTime, default=datetime.now, nullable=False)
     updated_at = Column(DateTime, default=datetime.now, onupdate=datetime.now, nullable=False)
 
@@ -24,6 +26,7 @@ class Account(Base):
 
     def __repr__(self):
         return f"<Account(source='{self.source}', account_id='{self.account_id}', name='{self.account_name}')>"
+
 
 class Post(Base):
     """微博帖子模型"""
@@ -92,4 +95,3 @@ class Video(Base):
 
     def __repr__(self):
         return f"<Video(video_id='{self.video_id}')>"
-
