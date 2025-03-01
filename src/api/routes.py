@@ -1,10 +1,11 @@
 from fastapi import APIRouter, Depends, HTTPException, Query, Request, Form
-from fastapi.responses import HTMLResponse, RedirectResponse, FileResponse
+from fastapi.responses import HTMLResponse, RedirectResponse, FileResponse, JSONResponse
 from fastapi.templating import Jinja2Templates
 from sqlalchemy.orm import Session
 from typing import List, Optional
 import os
 from pathlib import Path
+import datetime
 
 from database.config import get_db
 from database.models import Post, Account, Image, Video
@@ -292,3 +293,102 @@ async def get_groups():
     groups = account_manager.list_groups()
     
     return groups
+
+# 日志页面 - 展示日志
+@router.get("/logs", response_class=HTMLResponse)
+async def logs_page(request: Request, date: Optional[str] = None):
+    """显示指定日期的日志页面，默认为当天"""
+    today = datetime.datetime.now().strftime("%Y-%m-%d")
+    
+    # 获取所有可用的日志文件
+    logs_dir = Path(__file__).parent.parent.parent / "logs"
+    available_logs = []
+    
+    if logs_dir.exists():
+        # 获取所有.log文件并提取日期部分
+        for log_file in logs_dir.glob("*.log"):
+            # 只处理符合日期格式的日志文件（如2025-03-01.log）
+            if log_file.stem.count("-") == 2 and len(log_file.stem) == 10:
+                available_logs.append(log_file.stem)
+    
+    # 按日期降序排序（最新的在前）
+    available_logs.sort(reverse=True)
+    
+    # 如果没有指定日期或指定的日期不在可用列表中，使用当天或最新的日志
+    if not date or date not in available_logs:
+        date = today if today in available_logs else (available_logs[0] if available_logs else today)
+    
+    log_file = f"{date}.log"
+    log_path = logs_dir / log_file
+    
+    log_content = []
+    last_updated = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    
+    if log_path.exists():
+        try:
+            with open(log_path, "r", encoding="utf-8") as f:
+                # 读取最后100行
+                log_content = f.readlines()[-100:]
+                # 去除每行末尾的换行符
+                log_content = [line.rstrip() for line in log_content]
+        except Exception as e:
+            log_content = [f"读取日志文件出错: {str(e)}"]
+    
+    return templates.TemplateResponse(
+        "logs.html",
+        {
+            "request": request,
+            "current_date": date,
+            "log_file": log_file,
+            "log_content": log_content,
+            "last_updated": last_updated,
+            "available_logs": available_logs
+        }
+    )
+
+# API路由 - 获取最新日志
+@router.get("/api/logs", response_class=JSONResponse)
+async def get_logs(date: Optional[str] = None):
+    """获取指定日期的日志内容，默认为当天"""
+    today = datetime.datetime.now().strftime("%Y-%m-%d")
+    
+    # 获取所有可用的日志文件
+    logs_dir = Path(__file__).parent.parent.parent / "logs"
+    available_logs = []
+    
+    if logs_dir.exists():
+        # 获取所有.log文件并提取日期部分
+        for log_file in logs_dir.glob("*.log"):
+            # 只处理符合日期格式的日志文件（如2025-03-01.log）
+            if log_file.stem.count("-") == 2 and len(log_file.stem) == 10:
+                available_logs.append(log_file.stem)
+    
+    # 按日期降序排序（最新的在前）
+    available_logs.sort(reverse=True)
+    
+    # 如果没有指定日期或指定的日期不在可用列表中，使用当天或最新的日志
+    if not date or date not in available_logs:
+        date = today if today in available_logs else (available_logs[0] if available_logs else today)
+    
+    log_file = f"{date}.log"
+    log_path = logs_dir / log_file
+    
+    log_content = []
+    last_updated = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    
+    if log_path.exists():
+        try:
+            with open(log_path, "r", encoding="utf-8") as f:
+                # 读取最后100行
+                log_content = f.readlines()[-100:]
+                # 去除每行末尾的换行符
+                log_content = [line.rstrip() for line in log_content]
+        except Exception as e:
+            log_content = [f"读取日志文件出错: {str(e)}"]
+    
+    return {
+        "log_file": log_file,
+        "log_content": log_content,
+        "last_updated": last_updated,
+        "available_logs": available_logs
+    }
