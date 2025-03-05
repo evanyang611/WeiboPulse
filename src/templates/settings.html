@@ -32,6 +32,49 @@
                 </div>
             </div>
         </div>
+
+        <!-- 定时任务设置 -->
+        <div class="card mb-4">
+            <div class="card-header d-flex justify-content-between align-items-center">
+                <h5 class="card-title mb-0">定时任务设置</h5>
+                <button type="button" class="btn btn-sm btn-primary" data-bs-toggle="modal" data-bs-target="#addScheduleModal">
+                    添加
+                </button>
+            </div>
+            <div class="card-body">
+                {% if schedule_settings %}
+                    <div class="list-group">
+                        {% for group_name, schedule_time in schedule_settings %}
+                        <div class="list-group-item">
+                            <div class="d-flex justify-content-between align-items-center">
+                                <div>
+                                    <strong>{{ group_name }}</strong>
+                                    <div class="text-muted small">{{ schedule_time }}</div>
+                                </div>
+                                <div>
+                                    <button class="btn btn-sm btn-outline-primary me-1" 
+                                            data-bs-toggle="modal" 
+                                            data-bs-target="#editScheduleModal"
+                                            data-group="{{ group_name }}"
+                                            data-schedule="{{ schedule_time }}">
+                                        编辑
+                                    </button>
+                                    <button class="btn btn-sm btn-outline-danger" 
+                                            onclick="confirmDeleteSchedule('{{ group_name }}')">
+                                        删除
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                        {% endfor %}
+                    </div>
+                {% else %}
+                    <div class="text-center text-muted">
+                        暂无定时任务设置
+                    </div>
+                {% endif %}
+            </div>
+        </div>
     </div>
 
     <!-- 主内容区 -->
@@ -156,6 +199,103 @@
     </div>
 </div>
 
+<!-- 添加定时任务模态框 -->
+<div class="modal fade" id="addScheduleModal" tabindex="-1" aria-labelledby="addScheduleModalLabel" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="addScheduleModalLabel">添加定时任务</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <form action="/settings/schedule" method="post">
+                <div class="modal-body">
+                    <div class="mb-3">
+                        <label for="schedule_group" class="form-label">分组</label>
+                        <select class="form-select" id="schedule_group" name="group" required>
+                            {% for group in groups %}
+                            <option value="{{ group }}">{{ group }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    <div class="mb-3">
+                        <label for="schedule_time" class="form-label">定时设置</label>
+                        <div class="input-group">
+                            <span class="input-group-text">每</span>
+                            <input type="number" class="form-control" id="schedule_value" name="schedule_value" required min="1" value="1">
+                            <select class="form-select" id="schedule_unit" name="schedule_unit">
+                                <option value="seconds">秒</option>
+                                <option value="minutes" selected>分钟</option>
+                                <option value="hours">小时</option>
+                            </select>
+                        </div>
+                        <div class="form-text">设置抓取频率，例如：每30分钟抓取一次</div>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">取消</button>
+                    <button type="submit" class="btn btn-primary">保存</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<!-- 编辑定时任务模态框 -->
+<div class="modal fade" id="editScheduleModal" tabindex="-1" aria-labelledby="editScheduleModalLabel" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="editScheduleModalLabel">编辑定时任务</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <form action="/settings/schedule" method="post">
+                <div class="modal-body">
+                    <div class="mb-3">
+                        <label for="edit_schedule_group" class="form-label">分组</label>
+                        <input type="text" class="form-control" id="edit_schedule_group" name="group" readonly>
+                    </div>
+                    <div class="mb-3">
+                        <label for="edit_schedule_time" class="form-label">定时设置</label>
+                        <div class="input-group">
+                            <span class="input-group-text">每</span>
+                            <input type="number" class="form-control" id="edit_schedule_value" name="schedule_value" required min="1" value="1">
+                            <select class="form-select" id="edit_schedule_unit" name="schedule_unit">
+                                <option value="seconds">秒</option>
+                                <option value="minutes" selected>分钟</option>
+                                <option value="hours">小时</option>
+                            </select>
+                        </div>
+                        <div class="form-text">设置抓取频率，例如：每30分钟抓取一次</div>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">取消</button>
+                    <button type="submit" class="btn btn-primary">保存</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<!-- 删除定时任务确认模态框 -->
+<div class="modal fade" id="deleteScheduleConfirmModal" tabindex="-1" aria-labelledby="deleteScheduleConfirmModalLabel" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="deleteScheduleConfirmModalLabel">确认删除</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <p>确定要删除这个定时任务吗？</p>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">取消</button>
+                <button type="button" class="btn btn-danger" id="confirmDeleteScheduleBtn">删除</button>
+            </div>
+        </div>
+    </div>
+</div>
+
 {% block extra_js %}
 <script>
     // 处理分组选择
@@ -189,7 +329,7 @@
         window.location.href = url.toString();
     }
 
-    // 确认删除
+    // 确认删除账号
     function confirmDelete(accountId) {
         const modal = new bootstrap.Modal(document.getElementById('deleteConfirmModal'));
         modal.show();
@@ -214,6 +354,55 @@
             
             form.appendChild(accountIdInput);
             form.appendChild(hardDeleteInput);
+            document.body.appendChild(form);
+            form.submit();
+        };
+    }
+    
+    // 编辑定时任务
+    document.getElementById('editScheduleModal').addEventListener('show.bs.modal', function (event) {
+        const button = event.relatedTarget;
+        const group = button.getAttribute('data-group');
+        const schedule = button.getAttribute('data-schedule');
+        
+        document.getElementById('edit_schedule_group').value = group;
+        
+        // 解析时间设置
+        const scheduleParts = schedule.split(' ');
+        if (scheduleParts.length === 2) {
+            const value = parseInt(scheduleParts[0]);
+            const unit = scheduleParts[1];
+            
+            document.getElementById('edit_schedule_value').value = value;
+            
+            // 设置单位选择
+            const unitSelect = document.getElementById('edit_schedule_unit');
+            for (let i = 0; i < unitSelect.options.length; i++) {
+                if (unitSelect.options[i].value === unit) {
+                    unitSelect.selectedIndex = i;
+                    break;
+                }
+            }
+        }
+    });
+    
+    // 确认删除定时任务
+    function confirmDeleteSchedule(groupName) {
+        const modal = new bootstrap.Modal(document.getElementById('deleteScheduleConfirmModal'));
+        modal.show();
+        
+        document.getElementById('confirmDeleteScheduleBtn').onclick = function() {
+            // 创建表单并提交
+            const form = document.createElement('form');
+            form.method = 'POST';
+            form.action = '/settings/schedule/delete';
+            
+            const groupInput = document.createElement('input');
+            groupInput.type = 'hidden';
+            groupInput.name = 'group';
+            groupInput.value = groupName;
+            
+            form.appendChild(groupInput);
             document.body.appendChild(form);
             form.submit();
         };

@@ -10,6 +10,7 @@ import datetime
 from database.config import get_db
 from database.models import Post, Account, Image, Video
 from services.account_manager import AccountManager
+from services.settings_manager import SettingsManager
 from config import settings
 
 # 创建路由
@@ -21,6 +22,8 @@ templates = Jinja2Templates(directory=str(templates_dir))
 
 # 创建账号管理器
 account_manager = AccountManager()
+# 创建设置管理器
+settings_manager = SettingsManager()
 
 # 首页 - 展示所有微博
 @router.get("/", response_class=HTMLResponse)
@@ -123,6 +126,9 @@ async def settings_page(
     # 获取所有分组
     groups = account_manager.list_groups()
     
+    # 获取定时任务设置
+    schedule_settings = settings_manager.get_schedule_settings()
+    
     return templates.TemplateResponse(
         "settings.html", 
         {
@@ -130,7 +136,8 @@ async def settings_page(
             "accounts": accounts,
             "groups": groups,
             "current_group": group,
-            "show_disabled": include_disabled
+            "show_disabled": include_disabled,
+            "schedule_settings": schedule_settings
         }
     )
 
@@ -392,3 +399,49 @@ async def get_logs(date: Optional[str] = None):
         "last_updated": last_updated,
         "available_logs": available_logs
     }
+
+# 添加或更新定时任务设置
+@router.post("/settings/schedule")
+async def set_schedule(
+    group: str = Form(...),
+    schedule_value: int = Form(...),
+    schedule_unit: str = Form(...)
+):
+    # 验证单位
+    if schedule_unit not in ["seconds", "minutes", "hours"]:
+        raise HTTPException(status_code=400, detail="无效的时间单位")
+    
+    # 验证值
+    if schedule_value < 1:
+        raise HTTPException(status_code=400, detail="时间值必须大于0")
+    
+    # 组合成简单的格式："{value} {unit}"
+    schedule = f"{schedule_value} {schedule_unit}"
+    
+    # 设置键名格式为 schedule_group_{group_name}
+    key = f"schedule_group_{group}"
+    description = f"定时抓取分组 {group} 的时间设置"
+    
+    # 保存设置
+    setting = settings_manager.set_setting(key, schedule, description)
+    if not setting:
+        raise HTTPException(status_code=400, detail="保存设置失败")
+    
+    # 重定向回设置页面
+    return RedirectResponse(url="/settings", status_code=303)
+
+# 删除定时任务设置
+@router.post("/settings/schedule/delete")
+async def delete_schedule(
+    group: str = Form(...)
+):
+    # 设置键名格式为 schedule_group_{group_name}
+    key = f"schedule_group_{group}"
+    
+    # 删除设置
+    success = settings_manager.delete_setting(key)
+    if not success:
+        raise HTTPException(status_code=400, detail="删除设置失败")
+    
+    # 重定向回设置页面
+    return RedirectResponse(url="/settings", status_code=303)
