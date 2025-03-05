@@ -420,7 +420,7 @@ async def set_schedule(
     
     # 设置键名格式为 schedule_group_{group_name}
     key = f"schedule_group_{group}"
-    description = f"定时抓取分组 {group} 的时间设置"
+    description = f"定时刷新分组 {group} 的时间设置"
     
     # 保存设置
     setting = settings_manager.set_setting(key, schedule, description)
