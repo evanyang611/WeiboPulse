@@ -95,3 +95,18 @@ class Video(Base):
 
     def __repr__(self):
         return f"<Video(video_id='{self.video_id}')>"
+
+
+class Settings(Base):
+    """系统设置模型"""
+    __tablename__ = 'settings'
+
+    id = Column(Integer, primary_key=True)
+    key = Column(String(128), unique=True, nullable=False)  # 设置键名
+    value = Column(String(1024), nullable=False)  # 设置值
+    description = Column(String(512))  # 设置描述
+    created_at = Column(DateTime, default=datetime.now, nullable=False)
+    updated_at = Column(DateTime, default=datetime.now, onupdate=datetime.now, nullable=False)
+
+    def __repr__(self):
+        return f"<Settings(key='{self.key}', value='{self.value}')>"
