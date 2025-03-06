@@ -1,27 +1,23 @@
+# 使用官方Python基础镜像
 FROM python:3.9-slim
 
+# 设置工作目录
 WORKDIR /app
+
+# 设置Python环境
+ENV PYTHONUNBUFFERED=1 \
+    PYTHONDONTWRITEBYTECODE=1 \
+    PYTHONPATH=/app/src
 
 # 安装依赖
 COPY requirements.txt .
-RUN pip install --no-cache-dir -r requirements.txt
+RUN pip install --no-cache-dir -i https://pypi.tuna.tsinghua.edu.cn/simple -r requirements.txt
 
 # 复制源代码
 COPY src/ src/
 
-# 创建必要的目录
-RUN mkdir -p /app/data/db \
-    /app/data/media/images \
-    /app/data/media/videos \
-    /app/logs
+# 设置工作目录为src
+WORKDIR /app/src
 
-# 设置环境变量
-ENV PYTHONPATH=/app
-ENV DATA_DIR=/app/data
-ENV LOG_DIR=/app/logs
-
-# 暴露API端口
-EXPOSE 8000
-
-# 运行应用
-CMD ["python", "src/main.py"]
+# 启动命令
+CMD ["python", "main.py"]

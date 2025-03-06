@@ -3,27 +3,25 @@ version: '3.8'
 services:
   weibo_scraper:
     build: .
+    image: weibo_scraper:latest
+    container_name: weibo_scraper
+    user: "1000:1000"
     ports:
-      - "8000:8000"  # API端口映射
+      - "8000:8000"
     volumes:
-      # 开发环境：使用本地目录
-      - ./data/db:/app/data/db
-      - ./data/media:/app/data/media
-      - ./data/logs:/app/logs
-      
-      # 生产环境：使用命名卷（取消注释以启用）
-      # - weibo_db:/app/data/db
-      # - weibo_media:/app/data/media
-      # - weibo_logs:/app/logs
-    env_file:
-      - .env
+      - /volume1/docker/weibo_scraper/db:/app/data/db
+      - /volume1/docker/weibo_scraper/media:/app/data/media
+      - /volume1/docker/weibo_scraper/logs:/app/logs
+    environment:
+      - TZ=Asia/Shanghai
+      - WEB_HOST=0.0.0.0
+      - WEB_PORT=8000
+      # 设置RSS源地址，例如：http://your-rss-server:port/rss/user/
+      - RSS_BASE_URL=http://yangqihang.space:8001/rss/user/
     restart: unless-stopped
-
-# 生产环境的命名卷（取消注释以启用）
-# volumes:
-#   weibo_db:
-#     name: weibo_scraper_db
-#   weibo_media:
-#     name: weibo_scraper_media
-#   weibo_logs:
-#     name: weibo_scraper_logs
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/"]
+      interval: 1m
+      timeout: 10s
+      retries: 3
+      start_period: 30s

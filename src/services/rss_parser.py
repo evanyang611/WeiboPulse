@@ -252,7 +252,7 @@ class RSSParser:
             href = link.get('href', '')
             text = link.get_text()
             # 如果是@用户名的链接
-            if text.startswith('@') or (href and ('weibo.com' in href or 'yangqihang.space' in href)):
+            if text.startswith('@') or (href and ('weibo.com' in href)):
                 link.replace_with(text)
         
         # 7. 移除多余的换行和空格
@@ -480,19 +480,3 @@ class RSSParser:
                 continue
         
         return posts
-
-if __name__ == "__main__":
-    # 创建RSS解析器
-    parser = RSSParser()
-    
-    # 解析RSS源
-    posts = parser.parse_feed("http://yangqihang.space:8001/rss/user/3232506545")
-    
-    # # 打印微博信息
-    # for post in posts:
-    #     print(f"第 {posts.index(post) + 1} 条微博:")
-    #     print(f"链接: {post.link}")
-    #     print(f"标题: {post.title}")
-    #     print(f"内容: {post.content}")
-    #     print(f"发布时间: {post.published_at}")
-    #     print()

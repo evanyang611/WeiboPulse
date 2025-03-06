@@ -1,5 +1,11 @@
 import os
 from pathlib import Path
+from dotenv import load_dotenv
+
+# 加载.env文件（如果存在）
+env_path = Path(__file__).resolve().parent.parent.parent / '.env'
+if env_path.exists():
+    load_dotenv(env_path)
 
 # 基础路径
 BASE_DIR = Path(__file__).resolve().parent.parent.parent
@@ -21,13 +27,7 @@ DB_PATH = os.path.join(DB_DIR, "weibo.db")
 DATABASE_URL = f"sqlite:///{DB_PATH}"
 
 # RSS地址
-RSS_BASE_URL = "http://yangqihang.space:8001/rss/user/"
-
-# 调度配置
-SCHEDULE_INTERVAL = 60  # 秒
-
-# 下载配置
-DOWNLOAD_TIMEOUT = 30  # 秒
+RSS_BASE_URL = os.getenv('RSS_BASE_URL', 'http://localhost:8001/rss/user/')
 
 # Web应用配置
 WEB_HOST = os.getenv('WEB_HOST', '127.0.0.1')
