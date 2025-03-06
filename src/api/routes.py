@@ -13,6 +13,7 @@ from database.models import Post, Account, Image, Video
 from services.account_manager import AccountManager
 from services.settings_manager import SettingsManager
 from config import settings
+from services.scheduler_service import scheduler_service
 
 # 创建路由
 router = APIRouter()
@@ -428,6 +429,9 @@ async def set_schedule(
     if not setting:
         raise HTTPException(status_code=400, detail="保存设置失败")
     
+    # 重载调度器任务
+    await scheduler_service.reload_all_jobs()
+    
     # 重定向回设置页面
     return RedirectResponse(url="/settings", status_code=303)
 
@@ -443,6 +447,9 @@ async def delete_schedule(
     success = settings_manager.delete_setting(key)
     if not success:
         raise HTTPException(status_code=400, detail="删除设置失败")
+    
+    # 重载调度器任务
+    await scheduler_service.reload_all_jobs()
     
     # 重定向回设置页面
     return RedirectResponse(url="/settings", status_code=303)

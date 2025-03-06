@@ -141,14 +141,13 @@ class SettingsManager:
         """获取所有定时任务设置
         
         Returns:
-            List[Tuple[str, str]]: 包含分组名和定时设置的元组列表
+            List[Tuple[str, str]]: 分组名称和时间设置的元组列表
         """
         settings = self.list_settings(prefix="schedule_group_")
         result = []
         
         for setting in settings:
-            # 从键名中提取分组名
-            group_name = setting.key.replace("schedule_group_", "")
-            result.append((group_name, setting.value))
+            group = setting.key.replace("schedule_group_", "")
+            result.append((group, setting.value))
         
         return result 

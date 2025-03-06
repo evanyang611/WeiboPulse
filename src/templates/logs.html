@@ -58,11 +58,11 @@
             container.scrollTop = container.scrollHeight;
         }
         
-        // 初始滚动到底部
+        // 只在页面首次加载时滚动到底部
         scrollToBottom();
         
         // 刷新日志内容
-        function refreshLogs() {
+        function refreshLogs(shouldScroll = false) {
             const selectedDate = logDateSelect.value;
             fetch(`/api/logs?date=${selectedDate}`)
                 .then(response => response.json())
@@ -72,20 +72,24 @@
                             `<div class="log-line">${line}</div>`
                         ).join('');
                         lastUpdated.textContent = data.last_updated;
-                        scrollToBottom();
+                        
+                        // 只有在手动点击刷新按钮时才滚动到底部
+                        if (shouldScroll) {
+                            scrollToBottom();
+                        }
                     }
                 })
                 .catch(error => console.error('获取日志失败:', error));
         }
         
-        // 点击刷新按钮
-        refreshBtn.addEventListener('click', refreshLogs);
+        // 点击刷新按钮时，刷新并滚动到底部
+        refreshBtn.addEventListener('click', () => refreshLogs(true));
         
-        // 日期选择器改变时刷新日志
-        logDateSelect.addEventListener('change', refreshLogs);
+        // 日期选择器改变时，刷新并滚动到底部
+        logDateSelect.addEventListener('change', () => refreshLogs(true));
         
-        // 自动刷新（每3秒）
-        autoRefresh = setInterval(refreshLogs, 3000);
+        // 自动刷新（每3秒），但不滚动
+        autoRefresh = setInterval(() => refreshLogs(false), 3000);
         
         // 页面离开时清除定时器
         window.addEventListener('beforeunload', function() {
