@@ -17,16 +17,18 @@ from .image_downloader import ImageDownloader
 class RSSParser:
     """RSS解析器"""
     
-    def __init__(self, if_download: bool = True):
+    def __init__(self, if_download: bool = True, max_concurrent: int = 10):
         """初始化解析器
         
         Args:
             if_download: 是否下载媒体文件
+            max_concurrent: 最大并发下载数
         """
         self.logger = get_logger("rss_parser")
         self.db = next(get_db())
         self.if_download = if_download
-        self.image_downloader = ImageDownloader()
+        self.max_concurrent = max_concurrent
+        self.image_downloader = ImageDownloader(max_concurrent=max_concurrent)
     
     def _extract_media_files(self, soup: BeautifulSoup) -> List[Dict[str, Any]]:
         """提取媒体文件信息
@@ -283,10 +285,22 @@ class RSSParser:
             
         self.logger.info(f"开始下载图片，共 {total} 张")
         
+        # 创建下载任务列表
+        tasks = []
         for media in media_files:
             if media['type'] == 'image':
-                if await self.image_downloader.download_image(media):
+                tasks.append(self.image_downloader.download_image(media))
+        
+        # 并发下载所有图片
+        if tasks:
+            results = await asyncio.gather(*tasks, return_exceptions=True)
+            
+            # 统计成功数量
+            for result in results:
+                if result is True:  # 下载成功
                     success += 1
+                elif isinstance(result, Exception):
+                    self.logger.error(f"下载图片时发生异常: {str(result)}")
                     
         self.logger.info(f"图片下载完成: 成功 {success}/{total} 张")
 
@@ -391,10 +405,38 @@ class RSSParser:
         
         # 如果启用了下载功能，下载媒体文件
         if self.if_download and media_files:
-            asyncio.run(self._download_media_files(media_files))
+            # 使用同步方式调用异步方法，避免在已有事件循环中使用asyncio.run()
+            self._download_media_files_sync(media_files)
         
         return post
-    
+
+    def _download_media_files_sync(self, media_files: List[Dict[str, Any]]) -> None:
+        """同步方式调用异步下载方法
+        
+        这个方法解决了在已有事件循环中调用asyncio.run()导致的错误：
+        "asyncio.run() cannot be called from a running event loop"
+        
+        当在FastAPI等异步框架中调用时，会自动检测当前环境并使用适当的方式执行异步任务。
+        
+        Args:
+            media_files: 媒体文件信息列表
+        """
+        try:
+            # 获取当前事件循环
+            loop = asyncio.get_event_loop()
+            
+            # 如果当前在事件循环中运行，创建任务并等待完成
+            if loop.is_running():
+                # 在FastAPI中，我们不能直接等待任务完成，因为这会阻塞响应
+                # 所以我们只创建任务，让它在后台运行
+                asyncio.create_task(self._download_media_files(media_files))
+                self.logger.info("已创建后台下载任务")
+            else:
+                # 如果不在事件循环中，使用run_until_complete等待下载完成
+                loop.run_until_complete(self._download_media_files(media_files))
+        except Exception as e:
+            self.logger.error(f"下载媒体文件时出错: {str(e)}")
+
     def parse_feed(self, feed_url: str, account: Optional[Account] = None) -> List[Post]:
         """解析RSS源
         

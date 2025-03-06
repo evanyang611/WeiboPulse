@@ -6,6 +6,7 @@ from typing import List, Optional
 import os
 from pathlib import Path
 import datetime
+import asyncio
 
 from database.config import get_db
 from database.models import Post, Account, Image, Video
@@ -445,3 +446,69 @@ async def delete_schedule(
     
     # 重定向回设置页面
     return RedirectResponse(url="/settings", status_code=303)
+
+# 立即刷新分组
+@router.post("/refresh-group")
+async def refresh_group(
+    group: Optional[str] = Form(None),
+    wait_download: bool = Form(False),
+    max_concurrent: int = Form(10)
+):
+    # 创建RSS解析器
+    from services.rss_parser import RSSParser
+    import asyncio
+    
+    # 根据用户选择决定是否等待下载完成
+    parser = RSSParser(if_download=True, max_concurrent=max_concurrent)
+    
+    # 获取账号列表
+    if group:
+        accounts = account_manager.list_accounts(group=group)
+    else:
+        accounts = account_manager.list_accounts()
+    
+    if not accounts:
+        if group:
+            raise HTTPException(status_code=400, detail=f"分组 {group} 中没有账号")
+        else:
+            raise HTTPException(status_code=400, detail="没有可刷新的账号")
+    
+    # 记录总数
+    total_posts = 0
+    download_tasks = []
+    
+    # 遍历每个账号并解析RSS
+    for account in accounts:
+        try:
+            # 解析RSS源
+            posts = parser.parse_feed(account.rss_link, account=account)
+            total_posts += len(posts)
+        except Exception as e:
+            # 如果某个账号出错，继续处理其他账号
+            continue
+    
+    # 如果用户选择等待下载完成，则等待所有下载任务完成
+    if wait_download:
+        # 等待5秒，确保所有下载任务都已创建
+        await asyncio.sleep(5)
+        
+        # 获取当前事件循环中的所有任务
+        pending_tasks = [task for task in asyncio.all_tasks() 
+                        if not task.done() and task != asyncio.current_task()]
+        
+        # 等待所有任务完成，最多等待300秒
+        if pending_tasks:
+            try:
+                await asyncio.wait_for(asyncio.gather(*pending_tasks), timeout=300)
+            except asyncio.TimeoutError:
+                # 如果超时，继续执行
+                pass
+    
+    # 重定向回设置页面，带上刷新结果
+    redirect_url = "/settings"
+    if group:
+        redirect_url += f"?group={group}&refreshed=true&total={total_posts}"
+    else:
+        redirect_url += f"?refreshed=true&total={total_posts}"
+    
+    return RedirectResponse(url=redirect_url, status_code=303)

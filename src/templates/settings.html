@@ -81,10 +81,22 @@
     <div class="col-md-9">
         <div class="d-flex justify-content-between align-items-center mb-3">
             <h2>账号管理 {% if current_group %}<span class="badge bg-secondary">{{ current_group }}</span>{% endif %}</h2>
-            <button type="button" class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#addAccountModal">
-                添加账号
-            </button>
+            <div>
+                <button type="button" class="btn btn-success me-2" data-bs-toggle="modal" data-bs-target="#refreshModal">
+                    <i class="bi bi-arrow-clockwise"></i> 立即刷新
+                </button>
+                <button type="button" class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#addAccountModal">
+                    添加账号
+                </button>
+            </div>
         </div>
+
+        {% if request.query_params.get('refreshed') == 'true' %}
+        <div class="alert alert-success alert-dismissible fade show mb-3" role="alert">
+            刷新完成！共获取到 {{ request.query_params.get('total', '0') }} 条微博。
+            <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+        </div>
+        {% endif %}
 
         {% if accounts %}
             <div class="row">
@@ -292,6 +304,54 @@
                 <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">取消</button>
                 <button type="button" class="btn btn-danger" id="confirmDeleteScheduleBtn">删除</button>
             </div>
+        </div>
+    </div>
+</div>
+
+<!-- 刷新确认模态框 -->
+<div class="modal fade" id="refreshModal" tabindex="-1" aria-labelledby="refreshModalLabel" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="refreshModalLabel">刷新确认</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <form action="/refresh-group" method="post">
+                {% if current_group %}
+                <input type="hidden" name="group" value="{{ current_group }}">
+                {% endif %}
+                <div class="modal-body">
+                    <p>确定要立即刷新{% if current_group %}分组 <strong>{{ current_group }}</strong> 中的{% endif %}所有账号吗？</p>
+                    
+                    <div class="mb-3">
+                        <label for="max_concurrent" class="form-label">最大并发下载数</label>
+                        <input type="number" class="form-control" id="max_concurrent" name="max_concurrent" 
+                               min="1" max="20" value="10">
+                        <div class="form-text">设置同时下载的最大图片数量，建议值：3-10</div>
+                    </div>
+                    
+                    <div class="form-check mb-3">
+                        <input class="form-check-input" type="checkbox" id="waitDownload" name="wait_download" value="true">
+                        <label class="form-check-label" for="waitDownload">
+                            等待图片下载完成（可能需要较长时间）
+                        </label>
+                    </div>
+                    <div class="alert alert-info">
+                        <small>
+                            <i class="bi bi-info-circle"></i> 提示：
+                            <ul class="mb-0">
+                                <li>不勾选"等待下载"选项时，系统会在后台继续下载图片，但可能导致部分图片下载失败</li>
+                                <li>勾选"等待下载"选项时，系统会等待所有图片下载完成后再返回，但可能需要较长时间</li>
+                                <li>并发数越大，下载速度越快，但可能会增加服务器负载和网络压力</li>
+                            </ul>
+                        </small>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">取消</button>
+                    <button type="submit" class="btn btn-success">开始刷新</button>
+                </div>
+            </form>
         </div>
     </div>
 </div>
