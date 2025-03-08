@@ -48,7 +48,7 @@ app.include_router(router)
 if __name__ == "__main__":
     # 运行应用
     uvicorn.run(
-        "main:app",
+        "web:app",
         host=settings.WEB_HOST,
         port=settings.WEB_PORT,
         reload=True
