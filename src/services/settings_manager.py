@@ -7,8 +7,8 @@
 
 from typing import Optional, Dict, Any, List, Tuple
 from sqlalchemy.orm import Session
-from sqlalchemy import create_engine
 from database.models import Settings
+from database.config import engine
 from utils.logger import get_logger
 from config import settings as app_settings
 
@@ -18,7 +18,6 @@ class SettingsManager:
     def __init__(self):
         """初始化设置管理器"""
         self.logger = get_logger("settings_manager")
-        self.engine = create_engine(app_settings.DATABASE_URL)
     
     def get_setting(self, key: str) -> Optional[Settings]:
         """获取单个设置
@@ -30,7 +29,7 @@ class SettingsManager:
             Settings: 设置对象，如果不存在则返回 None
         """
         try:
-            with Session(self.engine) as session:
+            with Session(engine) as session:
                 setting = session.query(Settings).filter_by(key=key).first()
                 return setting
         except Exception as e:
@@ -64,7 +63,7 @@ class SettingsManager:
             Settings: 设置对象，如果操作失败则返回 None
         """
         try:
-            with Session(self.engine) as session:
+            with Session(engine) as session:
                 # 检查设置是否已存在
                 setting = session.query(Settings).filter_by(key=key).first()
                 
@@ -100,7 +99,7 @@ class SettingsManager:
             bool: 删除是否成功
         """
         try:
-            with Session(self.engine) as session:
+            with Session(engine) as session:
                 setting = session.query(Settings).filter_by(key=key).first()
                 if not setting:
                     self.logger.warning(f"设置不存在: {key}")
@@ -125,7 +124,7 @@ class SettingsManager:
             List[Settings]: 设置列表
         """
         try:
-            with Session(self.engine) as session:
+            with Session(engine) as session:
                 query = session.query(Settings)
                 
                 # 如果指定了前缀，筛选匹配的设置

@@ -2,11 +2,11 @@ import feedparser
 from typing import Optional, Dict, Any, List
 import logging
 from sqlalchemy.orm import Session
-from sqlalchemy import create_engine
 from urllib.parse import urljoin
 
 from config import settings
 from database.models import Account
+from database.config import engine
 from utils.logger import get_logger
 
 class AccountManager:
@@ -15,7 +15,6 @@ class AccountManager:
     def __init__(self):
         """初始化账号管理器"""
         self.logger = get_logger("account_manager")
-        self.engine = create_engine(settings.DATABASE_URL)
         
     def _get_account_info(self, account_id: str) -> Optional[Dict[str, Any]]:
         """从RSS源获取账号信息
@@ -71,7 +70,7 @@ class AccountManager:
             
         try:
             # 创建数据库会话
-            with Session(self.engine) as session:
+            with Session(engine) as session:
                 # 检查账号是否已存在
                 existing = session.query(Account).filter_by(account_id=account_id).first()
                 if existing:
@@ -123,7 +122,7 @@ class AccountManager:
             bool: 删除是否成功
         """
         try:
-            with Session(self.engine) as session:
+            with Session(engine) as session:
                 account = session.query(Account).filter_by(account_id=account_id).first()
                 if not account:
                     self.logger.warning(f"账号不存在: {account_id}")
@@ -155,7 +154,7 @@ class AccountManager:
             Account: 账号对象，如果不存在则返回 None
         """
         try:
-            with Session(self.engine) as session:
+            with Session(engine) as session:
                 account = session.query(Account).filter_by(account_id=account_id).first()
                 return account
         except Exception as e:
@@ -173,7 +172,7 @@ class AccountManager:
             List[Account]: 账号列表
         """
         try:
-            with Session(self.engine) as session:
+            with Session(engine) as session:
                 query = session.query(Account)
                 
                 # 是否包含已禁用账号
@@ -196,7 +195,7 @@ class AccountManager:
             list: 分组列表
         """
         try:
-            with Session(self.engine) as session:
+            with Session(engine) as session:
                 groups = session.query(Account.group).filter(Account.status == 1).distinct().all()
                 return [group[0] for group in groups]
         except Exception as e:

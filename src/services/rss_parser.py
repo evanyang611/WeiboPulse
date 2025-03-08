@@ -1,7 +1,7 @@
 import sys
 from pathlib import Path
 from typing import List, Optional, Dict, Any
-from datetime import datetime
+from datetime import datetime, timedelta, timezone
 import re
 from bs4 import BeautifulSoup
 import feedparser
@@ -357,12 +357,22 @@ class RSSParser:
         """
         # 解析发布时间
         try:
-            published_at = datetime.strptime(entry.published, '%a, %d %b %Y %H:%M:%S %z')
+            # 解析为原始时区时间
+            original_time = datetime.strptime(entry.published, '%a, %d %b %Y %H:%M:%S %z')
+            # 转换为北京时间 (UTC+8)
+            beijing_tz = timezone(timedelta(hours=8))
+            published_at = original_time.astimezone(beijing_tz)
+            self.logger.info(f"时间转换: 原始时间 {original_time} -> 北京时间 {published_at}")
         except ValueError:
             # 如果带有GMT时区标识，需要特殊处理
             if 'GMT' in entry.published:
                 published_str = entry.published.replace('GMT', '+0000')
-                published_at = datetime.strptime(published_str, '%a, %d %b %Y %H:%M:%S %z')
+                # 解析为UTC时间
+                utc_time = datetime.strptime(published_str, '%a, %d %b %Y %H:%M:%S %z')
+                # 转换为北京时间 (UTC+8)
+                beijing_tz = timezone(timedelta(hours=8))
+                published_at = utc_time.astimezone(beijing_tz)
+                self.logger.info(f"时间转换: GMT {utc_time} -> 北京时间 {published_at}")
             else:
                 raise
         
