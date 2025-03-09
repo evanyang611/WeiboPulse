@@ -110,3 +110,21 @@ class Settings(Base):
 
     def __repr__(self):
         return f"<Settings(key='{self.key}', value='{self.value}')>"
+
+
+class LLMResult(Base):
+    """大模型调用结果模型"""
+    __tablename__ = 'llm_results'
+
+    id = Column(Integer, primary_key=True)
+    time = Column(DateTime, default=datetime.now, nullable=False)  # 调用时间
+    objective = Column(String(128), nullable=False)  # 调用目的，如daily_topic_summary
+    model = Column(String(128), nullable=False)  # 使用的模型名称
+    input = Column(Text, nullable=False)  # 输入内容
+    output = Column(Text, nullable=False)  # 输出内容
+    created_at = Column(DateTime, default=datetime.now, nullable=False)
+    updated_at = Column(DateTime, default=datetime.now, onupdate=datetime.now, nullable=False)
+
+    def __repr__(self):
+        return f"<LLMResult(id='{self.id}', objective='{self.objective}', model='{self.model}')>"
+
