@@ -376,7 +376,7 @@ async def logs_page(request: Request, date: Optional[str] = None):
     today = datetime.datetime.now().strftime("%Y-%m-%d")
     
     # 获取所有可用的日志文件
-    logs_dir = LOG_DIR
+    logs_dir = Path(LOG_DIR)
     available_logs = []
     
     if logs_dir.exists():
@@ -428,7 +428,7 @@ async def get_logs(date: Optional[str] = None):
     today = datetime.datetime.now().strftime("%Y-%m-%d")
     
     # 获取所有可用的日志文件
-    logs_dir = Path(__file__).parent.parent.parent / "logs"
+    logs_dir = Path(LOG_DIR)
     available_logs = []
     
     if logs_dir.exists():
