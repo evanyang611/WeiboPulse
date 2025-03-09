@@ -7,13 +7,15 @@ import os
 from pathlib import Path
 import datetime
 import asyncio
+import json
 
 from database.config import get_db
-from database.models import Post, Account, Image, Video
+from database.models import Post, Account, Image, Video, LLMResult
 from services.account_manager import AccountManager
 from services.settings_manager import SettingsManager
 from config import settings
 from services.scheduler_service import scheduler_service
+from services.llm_service import llm_service
 
 # 创建路由
 router = APIRouter()
@@ -27,9 +29,57 @@ account_manager = AccountManager()
 # 创建设置管理器
 settings_manager = SettingsManager()
 
-# 首页 - 展示所有微博
-@router.get("/", response_class=HTMLResponse)
-async def index(
+# 根路径 - 重定向到消息页面
+@router.get("/", response_class=RedirectResponse)
+async def root():
+    return RedirectResponse(url="/messages")
+
+# 消息页面 - 展示LLMResult
+@router.get("/messages", response_class=HTMLResponse)
+async def messages(
+    request: Request, 
+    db: Session = Depends(get_db),
+    page: int = Query(1, ge=1),
+    per_page: int = Query(20, ge=1, le=100),
+    objective: Optional[str] = None
+):
+    # 计算分页
+    offset = (page - 1) * per_page
+    
+    # 构建查询
+    query = db.query(LLMResult).order_by(LLMResult.created_at.desc())
+    
+    # 如果指定了objective，筛选该objective的消息
+    if objective:
+        query = query.filter(LLMResult.objective == objective)
+    
+    # 获取总数
+    total_messages = query.count()
+    total_pages = (total_messages + per_page - 1) // per_page
+    
+    # 获取当前页的数据
+    messages = query.offset(offset).limit(per_page).all()
+    
+    # 获取所有不同的objective
+    objectives_query = db.query(LLMResult.objective).distinct().all()
+    objectives = [obj[0] for obj in objectives_query]
+    
+    return templates.TemplateResponse(
+        "messages.html", 
+        {
+            "request": request, 
+            "messages": messages,
+            "page": page,
+            "total_pages": total_pages,
+            "total_messages": total_messages,
+            "objectives": objectives,
+            "current_objective": objective
+        }
+    )
+
+# 详情页面 - 展示所有微博
+@router.get("/details", response_class=HTMLResponse)
+async def details(
     request: Request, 
     db: Session = Depends(get_db),
     page: int = Query(1, ge=1),
@@ -52,7 +102,7 @@ async def index(
         else:
             # 如果分组不存在或没有账号，返回空列表
             return templates.TemplateResponse(
-                "index.html", 
+                "details.html", 
                 {
                     "request": request, 
                     "posts": [],
@@ -73,7 +123,7 @@ async def index(
         else:
             # 如果账号不存在，返回空列表
             return templates.TemplateResponse(
-                "index.html", 
+                "details.html", 
                 {
                     "request": request, 
                     "posts": [],
@@ -102,7 +152,7 @@ async def index(
     groups = account_manager.list_groups()
     
     return templates.TemplateResponse(
-        "index.html", 
+        "details.html", 
         {
             "request": request, 
             "posts": posts,
@@ -131,6 +181,20 @@ async def settings_page(
     # 获取定时任务设置
     schedule_settings = settings_manager.get_schedule_settings()
     
+    # 获取话题总结设置
+    topic_summary_setting = settings_manager.get_setting("topic_summary")
+    topic_summary = None
+    
+    if topic_summary_setting:
+        try:
+            topic_summary = json.loads(topic_summary_setting.value)
+            # 将topics列表转换为换行分隔的字符串，用于在表单中显示
+            if "topics" in topic_summary and isinstance(topic_summary["topics"], list):
+                topic_summary["topics_text"] = "\n".join(topic_summary["topics"])
+        except json.JSONDecodeError:
+            # 如果解析失败，设为None
+            topic_summary = None
+    
     return templates.TemplateResponse(
         "settings.html", 
         {
@@ -139,7 +203,8 @@ async def settings_page(
             "groups": groups,
             "current_group": group,
             "show_disabled": include_disabled,
-            "schedule_settings": schedule_settings
+            "schedule_settings": schedule_settings,
+            "topic_summary": topic_summary
         }
     )
 
@@ -453,6 +518,67 @@ async def delete_schedule(
     
     # 重定向回设置页面
     return RedirectResponse(url="/settings", status_code=303)
+
+# 保存话题总结设置
+@router.post("/settings/topic-summary")
+async def set_topic_summary(
+    group: str = Form(...),
+    summary_value: int = Form(...),
+    summary_unit: str = Form(...),
+    topics: str = Form(...)
+):
+    # 验证单位
+    if summary_unit not in ["seconds", "minutes", "hours"]:
+        raise HTTPException(status_code=400, detail="无效的时间单位")
+    
+    # 验证值
+    if summary_value < 1:
+        raise HTTPException(status_code=400, detail="时间值必须大于0")
+    
+    # 组合成简单的格式："{value} {unit}"
+    interval = f"{summary_value} {summary_unit}"
+    
+    # 处理话题列表
+    topic_list = [topic.strip() for topic in topics.split("\n") if topic.strip()]
+    
+    # 创建设置值
+    setting_value = {
+        "group": group,
+        "interval": interval,
+        "topics": topic_list,
+        "topics_text": topics,  # 保存原始文本，方便编辑
+        "updated_at": datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    }
+    
+    # 保存设置
+    setting = settings_manager.set_setting(
+        key="topic_summary",
+        value=json.dumps(setting_value, ensure_ascii=False),
+        description="话题总结设置"
+    )
+    
+    if not setting:
+        raise HTTPException(status_code=400, detail="保存设置失败")
+    
+    # 重新加载LLM服务的任务
+    await llm_service.reload_all_jobs()
+    
+    # 重定向回设置页面
+    return RedirectResponse(url="/settings", status_code=303)
+
+# 立即执行话题总结
+@router.post("/run-topic-summary")
+async def run_topic_summary():
+    """立即执行话题总结任务"""
+    # 调用LLM服务执行话题总结
+    success = await llm_service.run_topic_summary_now()
+    
+    if success:
+        # 重定向回设置页面，并添加参数表示任务已开始
+        return RedirectResponse(url="/settings?summary_started=true", status_code=303)
+    else:
+        # 如果失败，返回错误
+        raise HTTPException(status_code=500, detail="启动话题总结任务失败")
 
 # 立即刷新分组
 @router.post("/refresh-group")

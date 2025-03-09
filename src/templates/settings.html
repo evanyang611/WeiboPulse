@@ -11,136 +11,206 @@
                 <h5 class="card-title mb-0">筛选</h5>
             </div>
             <div class="card-body">
-                <h6 class="mb-2">分组</h6>
+                <h6 class="mb-2">分组筛选</h6>
                 <div class="list-group mb-3">
-                    <a href="/settings" class="list-group-item list-group-item-action {% if not current_group %}active{% endif %}">
-                        全部
+                    <a class="list-group-item list-group-item-action {% if not current_group %}active{% endif %}" href="/settings">
+                        所有分组
                     </a>
                     {% for group in groups %}
-                    <a href="/settings?group={{ group }}" class="list-group-item list-group-item-action {% if current_group == group %}active{% endif %}">
+                    <a class="list-group-item list-group-item-action {% if current_group == group %}active{% endif %}" href="/settings?group={{ group }}">
                         {{ group }}
                     </a>
                     {% endfor %}
                 </div>
                 
                 <h6 class="mb-2">显示选项</h6>
-                <div class="form-check">
-                    <input class="form-check-input" type="checkbox" id="showDisabled" {% if show_disabled %}checked{% endif %} onchange="toggleDisabled()">
-                    <label class="form-check-label" for="showDisabled">
-                        显示已禁用账号
-                    </label>
+                <div class="mb-3">
+                    <div class="form-check">
+                        <input class="form-check-input" type="checkbox" id="showDisabled" {% if show_disabled %}checked{% endif %} onchange="toggleDisabled()">
+                        <label class="form-check-label" for="showDisabled">
+                            显示已禁用账号
+                        </label>
+                    </div>
                 </div>
-            </div>
-        </div>
-
-        <!-- 定时任务设置 -->
-        <div class="card mb-4">
-            <div class="card-header d-flex justify-content-between align-items-center">
-                <h5 class="card-title mb-0">定时任务设置</h5>
-                <button type="button" class="btn btn-sm btn-primary" data-bs-toggle="modal" data-bs-target="#addScheduleModal">
-                    添加
-                </button>
-            </div>
-            <div class="card-body">
-                {% if schedule_settings %}
-                    <div class="list-group">
-                        {% for group_name, schedule_time in schedule_settings %}
-                        <div class="list-group-item">
-                            <div class="d-flex justify-content-between align-items-center">
-                                <div>
-                                    <strong>{{ group_name }}</strong>
-                                    <div class="text-muted small">{{ schedule_time }}</div>
-                                </div>
-                                <div>
-                                    <button class="btn btn-sm btn-outline-primary me-1" 
-                                            data-bs-toggle="modal" 
-                                            data-bs-target="#editScheduleModal"
-                                            data-group="{{ group_name }}"
-                                            data-schedule="{{ schedule_time }}">
-                                        编辑
-                                    </button>
-                                    <button class="btn btn-sm btn-outline-danger" 
-                                            onclick="confirmDeleteSchedule('{{ group_name }}')">
-                                        删除
-                                    </button>
-                                </div>
-                            </div>
-                        </div>
-                        {% endfor %}
-                    </div>
-                {% else %}
-                    <div class="text-center text-muted">
-                        暂无定时任务设置
-                    </div>
-                {% endif %}
             </div>
         </div>
     </div>
 
     <!-- 主内容区 -->
     <div class="col-md-9">
+        <!-- 账号管理 -->
         <div class="d-flex justify-content-between align-items-center mb-3">
-            <h2>账号管理 {% if current_group %}<span class="badge bg-secondary">{{ current_group }}</span>{% endif %}</h2>
-            <div>
-                <button type="button" class="btn btn-success me-2" data-bs-toggle="modal" data-bs-target="#refreshModal">
-                    <i class="bi bi-arrow-clockwise"></i> 立即刷新
-                </button>
-                <button type="button" class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#addAccountModal">
-                    添加账号
+            <h2>账号管理</h2>
+            <div class="btn-toolbar mb-2 mb-md-0">
+                <div class="btn-group me-2">
+                    <button type="button" class="btn btn-sm btn-outline-success" data-bs-toggle="modal" data-bs-target="#refreshModal">
+                        <i class="bi bi-arrow-repeat"></i> 刷新账号
+                    </button>
+                    <button type="button" class="btn btn-sm btn-outline-primary" data-bs-toggle="modal" data-bs-target="#addAccountModal">
+                        <i class="bi bi-plus"></i> 添加账号
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <!-- 账号列表 -->
+        <div class="card mb-4">
+            <div class="card-body">
+                <div class="table-responsive">
+                    <table class="table table-striped table-sm">
+                        <thead>
+                            <tr>
+                                <th>账号ID</th>
+                                <th>账号名称</th>
+                                <th>分组</th>
+                                <th>状态</th>
+                                <th>操作</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for account in accounts %}
+                            <tr {% if account.status == 'disabled' %}class="table-secondary"{% endif %}>
+                                <td>{{ account.account_id }}</td>
+                                <td>
+                                    {% if account.account_name %}
+                                    <a href="{{ account.account_link }}" target="_blank">{{ account.account_name }}</a>
+                                    {% else %}
+                                    <span class="text-muted">未知</span>
+                                    {% endif %}
+                                </td>
+                                <td>{{ account.group }}</td>
+                                <td>
+                                    {% if account.status == 'active' %}
+                                    <span class="badge bg-success">活跃</span>
+                                    {% elif account.status == 'disabled' %}
+                                    <span class="badge bg-secondary">已禁用</span>
+                                    {% else %}
+                                    <span class="badge bg-warning text-dark">{{ account.status }}</span>
+                                    {% endif %}
+                                </td>
+                                <td>
+                                    <div class="btn-group btn-group-sm">
+                                        <a href="/details?account_id={{ account.account_id }}" class="btn btn-outline-primary">
+                                            <i class="bi bi-eye"></i>
+                                        </a>
+                                        <button type="button" class="btn btn-outline-danger" onclick="confirmDelete('{{ account.account_id }}')">
+                                            <i class="bi bi-trash"></i>
+                                        </button>
+                                    </div>
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+
+        <!-- 定时刷新设置 -->
+        <div class="d-flex justify-content-between align-items-center mb-3">
+            <h2>定时刷新设置</h2>
+            <div class="btn-toolbar mb-2 mb-md-0">
+                <button type="button" class="btn btn-sm btn-outline-primary" data-bs-toggle="modal" data-bs-target="#addScheduleModal">
+                    <i class="bi bi-plus"></i> 添加定时任务
                 </button>
             </div>
         </div>
 
-        {% if request.query_params.get('refreshed') == 'true' %}
-        <div class="alert alert-success alert-dismissible fade show mb-3" role="alert">
-            刷新完成！共获取到 {{ request.query_params.get('total', '0') }} 条微博。
-            <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+        <!-- 定时任务列表 -->
+        <div class="card mb-4">
+            <div class="card-body">
+                <div class="table-responsive">
+                    <table class="table table-striped table-sm">
+                        <thead>
+                            <tr>
+                                <th>分组</th>
+                                <th>刷新频率</th>
+                                <th>操作</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for group, schedule in schedule_settings %}
+                            <tr>
+                                <td>{{ group }}</td>
+                                <td>每 {{ schedule }}</td>
+                                <td>
+                                    <div class="btn-group btn-group-sm">
+                                        <button type="button" class="btn btn-outline-primary" 
+                                                data-bs-toggle="modal" 
+                                                data-bs-target="#editScheduleModal"
+                                                data-group="{{ group }}"
+                                                data-schedule="{{ schedule }}">
+                                            <i class="bi bi-pencil"></i>
+                                        </button>
+                                        <button type="button" class="btn btn-outline-danger" onclick="confirmDeleteSchedule('{{ group }}')">
+                                            <i class="bi bi-trash"></i>
+                                        </button>
+                                    </div>
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
         </div>
-        {% endif %}
-
-        {% if accounts %}
-            <div class="row">
-                {% for account in accounts %}
-                <div class="col-md-6">
-                    <div class="card account-card {% if account.status == 0 %}account-disabled{% endif %}">
-                        <div class="card-body">
-                            <div class="d-flex justify-content-between align-items-start">
-                                <div>
-                                    <h5 class="card-title">{{ account.account_name }}</h5>
-                                    <h6 class="card-subtitle mb-2 text-muted">@{{ account.account_id }}</h6>
-                                    {% if account.account_subtitle %}
-                                    <p class="card-text small">{{ account.account_subtitle }}</p>
-                                    {% endif %}
-                                </div>
-                                <div>
-                                    {% if account.status == 1 %}
-                                    <span class="badge bg-success">正常</span>
-                                    {% else %}
-                                    <span class="badge bg-danger">已禁用</span>
-                                    {% endif %}
-                                    {% if account.group != 'default' %}
-                                    <span class="badge bg-info">{{ account.group }}</span>
-                                    {% endif %}
-                                </div>
-                            </div>
-                            <div class="mt-3 d-flex justify-content-between">
-                                <div>
-                                    <a href="{{ account.account_link }}" target="_blank" class="btn btn-sm btn-outline-primary">主页</a>
-                                    <a href="{{ account.rss_link }}" target="_blank" class="btn btn-sm btn-outline-secondary">RSS</a>
-                                </div>
-                                <div>
-                                    <button class="btn btn-sm btn-danger" onclick="confirmDelete('{{ account.account_id }}')">删除</button>
-                                </div>
-                            </div>
-                        </div>
+        
+        <!-- 定时总结设置 -->
+        <div class="d-flex justify-content-between align-items-center mb-3">
+            <h2>定时总结设置</h2>
+            <div class="btn-toolbar mb-2 mb-md-0">
+                <button type="button" class="btn btn-sm btn-outline-primary" data-bs-toggle="modal" data-bs-target="#topicSummaryModal">
+                    <i class="bi bi-gear"></i> 配置总结设置
+                </button>
+            </div>
+        </div>
+        
+        <!-- 当前总结设置 -->
+        {% if topic_summary %}
+        <div class="card mb-4">
+            <div class="card-header">
+                <h5 class="card-title mb-0">当前总结设置</h5>
+            </div>
+            <div class="card-body">
+                <div class="row">
+                    <div class="col-md-4">
+                        <p><strong>目标分组：</strong> {{ topic_summary.group }}</p>
+                    </div>
+                    <div class="col-md-4">
+                        <p><strong>总结频率：</strong> 每 {{ topic_summary.interval }}</p>
+                    </div>
+                    <div class="col-md-4">
+                        <p><strong>上次更新：</strong> 
+                            {% if topic_summary.updated_at %}
+                            {{ topic_summary.updated_at }}
+                            {% else %}
+                            未知
+                            {% endif %}
+                        </p>
                     </div>
                 </div>
-                {% endfor %}
+                <div class="mt-3">
+                    <p><strong>关注话题：</strong></p>
+                    <ul class="list-group">
+                        {% for topic in topic_summary.topics %}
+                        <li class="list-group-item">{{ topic }}</li>
+                        {% endfor %}
+                    </ul>
+                </div>
+                <div class="mt-3">
+                    <a href="/messages?objective=daily_topic_summary" class="btn btn-sm btn-outline-primary">
+                        <i class="bi bi-eye"></i> 查看生成的总结
+                    </a>
+                    <button type="button" class="btn btn-sm btn-outline-success" onclick="runTopicSummary()">
+                        <i class="bi bi-play"></i> 立即执行总结
+                    </button>
+                </div>
             </div>
+        </div>
         {% else %}
-            <div class="alert alert-info">
-                暂无账号数据
-            </div>
+        <div class="alert alert-warning mb-4">
+            <i class="bi bi-exclamation-triangle"></i> 尚未配置话题总结设置，请点击"配置总结设置"按钮进行设置。
+        </div>
         {% endif %}
     </div>
 </div>
@@ -308,6 +378,56 @@
     </div>
 </div>
 
+<!-- 话题总结设置模态框 -->
+<div class="modal fade" id="topicSummaryModal" tabindex="-1" aria-labelledby="topicSummaryModalLabel" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="topicSummaryModalLabel">话题总结设置</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <form action="/settings/topic-summary" method="post">
+                <div class="modal-body">
+                    <div class="mb-3">
+                        <label for="summary_group" class="form-label">目标分组</label>
+                        <select class="form-select" id="summary_group" name="group" required>
+                            {% for group in groups %}
+                            <option value="{{ group }}" {% if topic_summary and topic_summary.group == group %}selected{% endif %}>{{ group }}</option>
+                            {% endfor %}
+                        </select>
+                        <div class="form-text">选择要从哪个分组的微博中生成总结</div>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label for="summary_interval" class="form-label">总结频率</label>
+                        <div class="input-group">
+                            <span class="input-group-text">每</span>
+                            <input type="number" class="form-control" id="summary_value" name="summary_value" required min="1" 
+                                   value="{% if topic_summary and topic_summary.interval %}{{ topic_summary.interval.split(' ')[0] }}{% else %}24{% endif %}">
+                            <select class="form-select" id="summary_unit" name="summary_unit">
+                                <option value="seconds" {% if topic_summary and topic_summary.interval and topic_summary.interval.endswith('seconds') %}selected{% endif %}>秒</option>
+                                <option value="minutes" {% if topic_summary and topic_summary.interval and topic_summary.interval.endswith('minutes') %}selected{% endif %}>分钟</option>
+                                <option value="hours" {% if not topic_summary or not topic_summary.interval or topic_summary.interval.endswith('hours') %}selected{% endif %}>小时</option>
+                            </select>
+                        </div>
+                        <div class="form-text">设置生成总结的频率，例如：每24小时生成一次</div>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label for="summary_topics" class="form-label">关注话题</label>
+                        <textarea class="form-control" id="summary_topics" name="topics" rows="4" required placeholder="每行一个话题">{% if topic_summary and topic_summary.topics_text %}{{ topic_summary.topics_text }}{% endif %}</textarea>
+                        <div class="form-text">输入您关注的话题，每行一个话题</div>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">取消</button>
+                    <button type="submit" class="btn btn-primary">保存</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
 <!-- 刷新确认模态框 -->
 <div class="modal fade" id="refreshModal" tabindex="-1" aria-labelledby="refreshModalLabel" aria-hidden="true">
     <div class="modal-dialog">
@@ -466,6 +586,55 @@
             document.body.appendChild(form);
             form.submit();
         };
+    }
+    
+    // 立即执行话题总结
+    function runTopicSummary() {
+        if (confirm('确定要立即执行话题总结吗？这可能需要一些时间。')) {
+            // 创建表单并提交
+            const form = document.createElement('form');
+            form.method = 'POST';
+            form.action = '/run-topic-summary';
+            document.body.appendChild(form);
+            form.submit();
+        }
+    }
+    
+    // 检查URL参数，显示提示信息
+    document.addEventListener('DOMContentLoaded', function() {
+        const urlParams = new URLSearchParams(window.location.search);
+        
+        // 检查是否有刷新成功的消息
+        if (urlParams.get('refreshed') === 'true') {
+            const total = urlParams.get('total') || '0';
+            showAlert('success', `刷新完成！共获取到 ${total} 条微博。`);
+        }
+        
+        // 检查是否有话题总结开始的消息
+        if (urlParams.get('summary_started') === 'true') {
+            showAlert('info', '话题总结已开始执行，请稍后在"消息"页面查看结果。');
+        }
+    });
+    
+    // 显示提示信息
+    function showAlert(type, message) {
+        const alertDiv = document.createElement('div');
+        alertDiv.className = `alert alert-${type} alert-dismissible fade show`;
+        alertDiv.role = 'alert';
+        alertDiv.innerHTML = `
+            ${message}
+            <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+        `;
+        
+        // 插入到主内容区的顶部
+        const mainContent = document.querySelector('.col-md-9');
+        mainContent.insertBefore(alertDiv, mainContent.firstChild);
+        
+        // 5秒后自动关闭
+        setTimeout(() => {
+            const bsAlert = new bootstrap.Alert(alertDiv);
+            bsAlert.close();
+        }, 5000);
     }
 </script>
 {% endblock %}

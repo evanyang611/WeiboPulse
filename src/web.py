@@ -20,6 +20,7 @@ from api.routes import router
 from database.models import Base
 from database.config import engine
 from services.scheduler_service import scheduler_service
+from services.llm_service import llm_service
 from config import settings
 
 @asynccontextmanager
@@ -28,10 +29,12 @@ async def lifespan(app: FastAPI):
     # 启动时的初始化操作
     Base.metadata.create_all(bind=engine)
     await scheduler_service.start()
+    await llm_service.start()
     
     yield
     
     # 关闭时的清理操作
+    await llm_service.stop()
     await scheduler_service.stop()
 
 # 创建FastAPI应用

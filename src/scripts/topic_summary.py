@@ -153,13 +153,14 @@ def get_recent_posts_by_group(group: str, hours: float):
         )
         
         # 添加排序
-        query = query.order_by(Post.published_at.desc())
+        query = query.order_by(Post.published_at.desc() )
         
         # 执行查询
         posts = []
         for post in query.all():
             post_dict = {
                 "published_at": post.published_at.strftime("%Y-%m-%d %H:%M:%S"),
+                "id": post.id,
                 "account_name": post.account.account_name,
                 "content": post.content
             }
