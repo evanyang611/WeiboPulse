@@ -14,6 +14,7 @@ from database.models import Post, Account, Image, Video, LLMResult
 from services.account_manager import AccountManager
 from services.settings_manager import SettingsManager
 from config import settings
+from config.settings import LOG_DIR
 from services.scheduler_service import scheduler_service
 from services.llm_service import llm_service
 
@@ -375,7 +376,7 @@ async def logs_page(request: Request, date: Optional[str] = None):
     today = datetime.datetime.now().strftime("%Y-%m-%d")
     
     # 获取所有可用的日志文件
-    logs_dir = Path(__file__).parent.parent.parent / "logs"
+    logs_dir = LOG_DIR
     available_logs = []
     
     if logs_dir.exists():
