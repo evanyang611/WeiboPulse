@@ -12,9 +12,9 @@ BASE_DIR = Path(__file__).resolve().parent.parent.parent
 
 # 基础路径配置
 DATA_DIR = os.getenv('DATA_DIR', BASE_DIR / "data")
-LOG_DIR = os.getenv('LOG_DIR', BASE_DIR / "logs")
 
 # 存储路径配置
+LOG_DIR = os.path.join(DATA_DIR, 'logs')
 DB_DIR = os.path.join(DATA_DIR, 'db')
 MEDIA_DIR = os.path.join(DATA_DIR, 'media')
 IMAGES_DIR = os.path.join(MEDIA_DIR, 'images')

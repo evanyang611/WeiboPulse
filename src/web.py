@@ -2,7 +2,7 @@
 # -*- coding: utf-8 -*-
 
 """
-WeiboScraper 主入口文件
+WeiboPulse 主入口文件
 """
 
 import sys
@@ -39,7 +39,7 @@ async def lifespan(app: FastAPI):
 
 # 创建FastAPI应用
 app = FastAPI(
-    title="WeiboScraper",
+    title="WeiboPulse",
     description="微博RSS订阅和内容展示系统",
     version="1.0.0",
     lifespan=lifespan
