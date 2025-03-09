@@ -1,23 +1,24 @@
 version: '3.8'
 
 services:
-  weibo_scraper:
+  weibo_pulse:
     build: .
-    image: weibo_scraper:latest
-    container_name: weibo_scraper
-    user: "1000:1000"
+    image: weibo_pulse:latest
+    container_name: weibo_pulse
+    user: "1026:100"
     ports:
-      - "8000:8000"
+      - "8101:8000"
     volumes:
-      - /volume1/docker/weibo_scraper/db:/app/data/db
-      - /volume1/docker/weibo_scraper/media:/app/data/media
-      - /volume1/docker/weibo_scraper/logs:/app/logs
+      - /volume1/docker/WeiboPulse/data:/app/data
     environment:
       - TZ=Asia/Shanghai
       - WEB_HOST=0.0.0.0
       - WEB_PORT=8000
-      # 设置RSS源地址，例如：http://your-rss-server:port/rss/user/
       - RSS_BASE_URL=http://yangqihang.space:8001/rss/user/
+      - ALIYUN_API_KEY=sk-f3570a726ec345779e421e135edc2c8b
+      - TEXT_MODEL=qwen-max-latest
+      - MULTIMODAL_MODEL=qwen-omni-turbo-latest
+      - DATA_DIR=/app/data
     restart: unless-stopped
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8000/"]
@@ -25,3 +26,8 @@ services:
       timeout: 10s
       retries: 3
       start_period: 30s
+    deploy:
+      resources:
+        limits:
+          cpus: '2'
+          memory: 4G

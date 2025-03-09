@@ -20,4 +20,4 @@ COPY src/ src/
 WORKDIR /app/src
 
 # 启动命令
-CMD ["python", "main.py"]
+CMD ["python", "web.py"]
