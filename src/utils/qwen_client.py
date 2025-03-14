@@ -186,6 +186,9 @@ class QwenClient:
                 # 提取回复内容
                 content = completion.choices[0].message.content
                 
+                # 对内容进行后处理
+                content = self._post_process_response(content)
+                
                 # 检查内容是否为空
                 if not content or not content.strip():
                     raise ValueError("模型返回的内容为空")
@@ -217,6 +220,20 @@ class QwenClient:
             
         if not hasattr(completion.choices[0].message, 'content'):
             raise ValueError("API返回结果中没有content字段")
+
+    def _post_process_response(self, response: str) -> str:
+        """对模型返回的内容进行后处理
+        
+        Args:
+            response: 模型返回的内容
+        """
+        if response.startswith('```json'):
+            response = response.strip('```json').strip('```')
+
+        if response.startswith('```markdown'):
+            response = response.strip('```markdown').strip('```')
+
+        return response
  
 
 

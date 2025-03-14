@@ -7,7 +7,7 @@ services:
     container_name: weibo_pulse
     user: "1026:100"
     ports:
-      - "8101:8000"
+      - "8002:8000"
     volumes:
       - /volume1/docker/WeiboPulse/data:/app/data
     environment:
