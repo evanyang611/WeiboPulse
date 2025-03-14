@@ -58,3 +58,6 @@ logs/
 *.gif
 *.svg
 !docs/images/**
+
+# 排除所有脚本文件
+src/scripts/

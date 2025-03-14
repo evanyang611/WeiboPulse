@@ -258,8 +258,6 @@ if __name__ == "__main__":
             # else:
             #     print("\n--- 生成完成 ---")
         
-
-        # {'published_at': '2025-03-09 15:01:38', 'account_name': 'gonex', 'content': '[思考]\n//@龍宮輝夜: 令人绝望的原生家庭…第一胎产后2年就患上精神分裂的妈 不管家务事的爹 和默默承担了一切的8岁小姑娘…然后在这种情况下这对夫妻还要了二胎 【好像只有我已经老了】 最可怕的是 这是真实故事改编漫画… {image} {image} {image} {image} {image} {image} {image} {image} {image}', 'images': ['https://image.baidu.com/search/down?url=https%3A%2F%2Fwx4.sinaimg.cn%2Flarge%2Fe17e66f5gy1hzaia1p8lsj20l80tztnb.jpg', 'https://image.baidu.com/search/down?url=https%3A%2F%2Fwx2.sinaimg.cn%2Flarge%2Fe17e66f5gy1hzaia28uxyj20l80tz7h3.jpg', 'https://image.baidu.com/search/down?url=https%3A%2F%2Fwx2.sinaimg.cn%2Flarge%2Fe17e66f5gy1hzaia2nuzdj20l80tzgvi.jpg', 'https://image.baidu.com/search/down?url=https%3A%2F%2Fwx4.sinaimg.cn%2Flarge%2Fe17e66f5gy1hzaia33oaij20l80tzn8d.jpg', 'https://image.baidu.com/search/down?url=https%3A%2F%2Fwx1.sinaimg.cn%2Flarge%2Fe17e66f5gy1hzaia3k3ysj20l80tzwn2.jpg', 'https://image.baidu.com/search/down?url=https%3A%2F%2Fwx2.sinaimg.cn%2Flarge%2Fe17e66f5gy1hzaia42clrj20l80tzdra.jpg', 'https://image.baidu.com/search/down?url=https%3A%2F%2Fwx2.sinaimg.cn%2Flarge%2Fe17e66f5gy1hzaia13z77j20l80tzqeg.jpg', 'https://image.baidu.com/search/down?url=https%3A%2F%2Fwx1.sinaimg.cn%2Flarge%2Fe17e66f5gy1hzaia4rfkrj20l80tzk38.jpg', 'https://image.baidu.com/search/down?url=https%3A%2F%2Fwx4.sinaimg.cn%2Flarge%2Fe17e66f5gy1hzaia56r2yj20l80tzqbt.jpg']}
         # 多模态示例
         print("\n=== 多模态示例 ===")
 
