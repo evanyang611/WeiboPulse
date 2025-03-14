@@ -190,10 +190,11 @@ class LLMService:
                 message = prompt_template.replace("【关心话题】", topics_str).replace("【微博内容】", posts_str)
                 
                 summary = await self._generate_topic_summary(message)
+                model_name = os.getenv("TEXT_MODEL") # 仅文字模型
                 
                 if summary:
                     # 保存结果
-                    await self._save_llm_result("daily_topic_summary", "qwen", message, summary)
+                    await self._save_llm_result("daily_topic_summary", model_name, message, summary)
                     
                     # 更新设置中的上次更新时间
                     setting_value["updated_at"] = datetime.now().strftime("%Y-%m-%d %H:%M:%S")

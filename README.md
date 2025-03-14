@@ -1,87 +1,71 @@
 # WeiboPulse
 
-微博RSS订阅和内容展示系统，支持定时抓取微博内容、话题总结和内容展示。
+这是一个可以在个人NAS上布置的、微博RSS订阅和内容展示系统，支持定时抓取微博内容、话题总结和内容展示。
 
 ## 功能特点
 
-- 🔄 **RSS订阅**：通过RSS源订阅微博账号内容
-- 📊 **定时抓取**：自动定时抓取和更新微博内容
-- 🖼️ **媒体下载**：自动下载和存储微博中的图片和视频
-- 🤖 **AI总结**：使用阿里云千问大模型对微博内容进行话题总结
-- 🌐 **Web界面**：提供美观的Web界面展示微博内容和话题总结
-- 👥 **账号分组**：支持微博账号分组和管理
-- 🔍 **内容检索**：支持按时间、账号、关键词等检索微博内容
-
-## 技术栈
-
-- **后端**：Python + FastAPI
-- **数据库**：SQLite
-- **定时任务**：APScheduler
-- **AI模型**：阿里云千问大模型
-- **部署**：Docker + Docker Compose
+- **RSS订阅**：通过RSS源订阅微博账号内容
+- **定时抓取**：自动定时抓取和更新微博内容
+- **媒体下载**：自动下载和存储微博中的图片和视频
+- **AI总结**：基于阿里百炼调用大模型对微博内容进行话题总结
+- **Web界面**：提供美观的Web界面展示微博内容和话题总结
+- **账号分组**：支持微博账号分组和管理
+- **内容检索**：支持按时间、账号、关键词等检索微博内容
 
 ## 快速开始
 
 ### 前提条件
 
 - Docker 和 Docker Compose 已安装
-- 阿里云千问API密钥（可选，用于AI总结功能）
+- 阿里百炼API密钥（可选，用于AI总结功能）
+- 微博RSS源（推荐使用 [weibo-rss](https://github.com/zgq354/weibo-rss)）
 
 ### 安装步骤
 
-1. **克隆仓库**
+1. **配置环境变量**
+
+从示例文件创建配置文件：
 
 ```bash
-git clone https://github.com/yourusername/WeiboPulse.git
-cd WeiboPulse
+cp .env.example .env
+cp docker-compose.example.yml docker-compose.yml
 ```
 
-2. **修改配置**
+然后编辑 `.env` 和 `docker-compose.yml` 文件，根据您的环境进行配置：
 
-编辑 `docker-compose.yml` 文件，根据需要修改环境变量：
+- 在 `.env` 文件中设置您的阿里百炼API密钥和其他配置
+- 在 `docker-compose.yml` 文件中调整端口映射、用户ID和资源限制
 
-```yaml
-environment:
-  - TZ=Asia/Shanghai                                    # 时区设置
-  - WEB_HOST=0.0.0.0                                    # Web服务监听地址
-  - WEB_PORT=8000                                       # Web服务监听端口
-  - RSS_BASE_URL=http://your-rss-server:port/rss/user/  # RSS源地址
-  - ALIYUN_API_KEY=your-api-key                         # 阿里云千问API密钥
-  - TEXT_MODEL=qwen-max-latest                          # 纯文本模型
-  - MULTIMODAL_MODEL=qwen-omni-turbo-latest             # 多模态模型
-  - DATA_DIR=/app/data                                  # 数据目录
-```
 
-3. **启动服务**
+2. **启动服务**
 
 ```bash
 docker-compose up -d
 ```
 
-4. **访问Web界面**
+5. **访问Web界面**
 
 服务启动后，通过浏览器访问：
 
 ```
-http://your-host-ip:8101
+http://your-host-ip:8000
 ```
 
-## 使用说明
+## 配置说明
 
-### 添加微博账号
+### 环境变量
 
-1. 访问Web界面
-2. 点击"设置"菜单
-3. 在"账号管理"部分，输入微博账号ID并点击"添加"
+以下是主要的环境变量及其说明：
 
-### 设置定时任务
+| 变量名 | 说明 | 
+|--------|------|
+| RSS_BASE_URL | RSS源地址 | 
+| WEB_HOST | Web服务监听地址 | 
+| WEB_PORT | Web服务监听端口 |
+| TZ | 时区设置 |
+| ALIYUN_API_KEY | 阿里百炼API密钥 | 
+| TEXT_MODEL | 纯文本模型 | 
+| MULTIMODAL_MODEL | 多模态模型 | 
+| DATA_DIR | 数据目录 | 
 
-1. 访问Web界面
-2. 点击"设置"菜单
-3. 在"定时任务"部分，设置抓取频率和分组
 
-### 查看话题总结
-
-1. 访问Web界面
-2. 点击"消息"菜单
-3. 查看由AI生成的话题总结
